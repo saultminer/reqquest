@@ -30,9 +30,7 @@
   $: enabledRequirements = Object.entries(groupby(program.requirements.filter((r: PeriodRequirement) => r.enabled) as PeriodRequirement[], 'type'))
   $: disabledRequirements = program.requirements.filter((r: PeriodRequirement) => !r.enabled) as PeriodRequirement[]
 
-  // configuration is stored once per period, not once per program, so a requirement shared with an earlier
-  // program is shown in full there and abbreviated here - a page with many programs would otherwise repeat
-  // the same prompts and settings under every one of them
+  // configuration is stored once per period, not once per program
   const sharedWith = (requirementKey: string): string[] => sharedProgramRequirements[requirementKey] ?? []
   const configuredUnder = (requirementKey: string): string | undefined => {
     const owners = sharedWith(requirementKey)

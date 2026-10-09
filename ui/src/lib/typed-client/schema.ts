@@ -215,6 +215,7 @@ export interface AppRequest {
     /** Actions the user can take on this app request. */
     actions: AppRequestActions
     applicant: AccessUser
+    /** The applications on this request, one per program. Pass programKeys to receive only some of them - a screen that shows one program should not download every program's requirement and prompt tree. */
     applications: Application[]
     /** True when at least one reachable prompt anywhere on this request has been invalidated and must be re-answered. Status and phase are computed from the answers on file, so use this flag to explain that the request is held back awaiting a correction. */
     awaitingCorrection: Scalars['Boolean']
@@ -621,7 +622,7 @@ export interface Mutation {
     roleDeleteGrant: AccessRoleValidatedResponse
     roleUpdate: AccessRoleValidatedResponse
     roleUpdateGrant: AccessRoleValidatedResponse
-    /** Submit the app request. */
+    /** Submit the app request. Applications whose program has no reviewer questions (no PREAPPROVAL or APPROVAL requirements) advance on their own into their first blocking workflow stage or to REVIEW_COMPLETE; when nothing is left to review, the review is completed automatically as well. Applications ruled out before submission (PREQUAL or QUALIFICATION) do not hold that back. */
     submitAppRequest: ValidatedAppRequestResponse
     /** Toggle an existing note's persistent status. */
     togglePersistence: ValidatedNoteResponse
@@ -1238,7 +1239,8 @@ export interface AppRequestGenqlSelection{
     /** Actions the user can take on this app request. */
     actions?: AppRequestActionsGenqlSelection
     applicant?: AccessUserGenqlSelection
-    applications?: ApplicationGenqlSelection
+    /** The applications on this request, one per program. Pass programKeys to receive only some of them - a screen that shows one program should not download every program's requirement and prompt tree. */
+    applications?: (ApplicationGenqlSelection & { __args?: {programKeys?: (Scalars['String'][] | null)} })
     /** True when at least one reachable prompt anywhere on this request has been invalidated and must be re-answered. Status and phase are computed from the answers on file, so use this flag to explain that the request is held back awaiting a correction. */
     awaitingCorrection?: boolean | number
     /** Date that this request was considered closed and no longer editable. If active or re-opened, will be null. If closed again, will be the second closure date. */
@@ -1744,7 +1746,7 @@ export interface MutationGenqlSelection{
     roleDeleteGrant?: (AccessRoleValidatedResponseGenqlSelection & { __args: {grantId: Scalars['ID']} })
     roleUpdate?: (AccessRoleValidatedResponseGenqlSelection & { __args: {role: AccessRoleInput, roleId: Scalars['ID'], validateOnly?: (Scalars['Boolean'] | null)} })
     roleUpdateGrant?: (AccessRoleValidatedResponseGenqlSelection & { __args: {grant: AccessRoleGrantUpdate, grantId: Scalars['ID'], validateOnly?: (Scalars['Boolean'] | null)} })
-    /** Submit the app request. */
+    /** Submit the app request. Applications whose program has no reviewer questions (no PREAPPROVAL or APPROVAL requirements) advance on their own into their first blocking workflow stage or to REVIEW_COMPLETE; when nothing is left to review, the review is completed automatically as well. Applications ruled out before submission (PREQUAL or QUALIFICATION) do not hold that back. */
     submitAppRequest?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID']} })
     /** Toggle an existing note's persistent status. */
     togglePersistence?: (ValidatedNoteResponseGenqlSelection & { __args: {noteId: Scalars['ID']} })

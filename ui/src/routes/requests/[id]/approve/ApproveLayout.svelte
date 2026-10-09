@@ -1,21 +1,35 @@
 <script lang="ts">
-  import { api, getApplicationStatusInfo, type ReviewData } from '$internal'
+  import { api, getApplicationStatusInfo } from '$internal'
   import type { LayoutData } from '../$types.js'
   import { uiRegistry } from '../../../../local/index.js'
   import { enumApplicationStatus, enumRequirementStatus, InfoCard } from '$lib'
-  import { Modal } from 'carbon-components-svelte'
+  import { Loading, Modal } from 'carbon-components-svelte'
   import { Information } from 'carbon-icons-svelte'
   import StatusMessageList from '$internal/components/StatusMessageList.svelte'
   import { getContext } from 'svelte'
+  import { page } from '$app/stores'
   import { UISHELL_STICKY_CONTEXT, type UIShellStickyStore } from '@txstate-mws/carbon-svelte'
 
   export let basicRequestData: LayoutData['basicRequestData']
-  export let appRequest: ReviewData
   let open = false
 
   const stickyShellHeader = getContext<UIShellStickyStore>(UISHELL_STICKY_CONTEXT)
 
-   $: optedOutPrograms = appRequest?.applications
+  // the review page only loads the displayed program, so the dialog fetches every program's outcome when it opens
+  type IneligibilityInfo = Awaited<ReturnType<typeof api.getIneligibilityInfo>>
+  let ineligibilityInfo: IneligibilityInfo | undefined
+  let loadingInfo = false
+  async function openIneligibilityInfo () {
+    open = true
+    loadingInfo = true
+    try {
+      ineligibilityInfo = await api.getIneligibilityInfo($page.params.id!)
+    } finally {
+      loadingInfo = false
+    }
+  }
+
+  $: optedOutPrograms = ineligibilityInfo?.applications
     .filter(curr => curr.requirements.flatMap(r => r.prompts).find(r => r.optOut))
     .reduce((acc, c) => {
       const optOutRequirement = c.requirements.find(r => r.prompts.some(p => p.optOut))
@@ -24,6 +38,7 @@
         [c.id]: optOutRequirement?.status === enumRequirementStatus.DISQUALIFYING
       }
     }, {} as Record<string, boolean>) ?? {}
+  $: ineligiblePrograms = ineligibilityInfo?.applications.filter(app => app.status === enumApplicationStatus.INELIGIBLE) ?? []
 
 </script>
 
@@ -33,7 +48,7 @@
       noPrimaryAction
       title={basicRequestData.applicant.fullname}
       actions={[
-        { label: 'Ineligibility Information', icon: Information, onClick: () => { open = true } }
+        { label: 'Ineligibility Information', icon: Information, onClick: openIneligibilityInfo }
       ]}>
       <dl class="identifier">
         <dt>{uiRegistry.getWord('login')}</dt>
@@ -59,12 +74,13 @@
 </div>
 
 <Modal passiveModal bind:open modalHeading="Ineligible programs">
-  {@const ineligiblePrograms = appRequest?.applications.filter(app => app.status === enumApplicationStatus.INELIGIBLE)}
   <div class='flex flex-col gap-4 text-base'>
-    {#if ineligiblePrograms?.length}
+    {#if loadingInfo}
+      <Loading withOverlay={false} small />
+    {:else if ineligiblePrograms.length && ineligibilityInfo}
       {#each ineligiblePrograms as application}
         {@const warningReqs = application.requirements.filter(r => r.status === 'WARNING' && r.statusReason)}
-        {@const message = `${getApplicationStatusInfo(application.status, appRequest!.phase, appRequest!.closedAt, application.rescindedStatus)[0].label}${application.statusReason ?? optedOutPrograms[application.id] ? ':' : ''} ${optedOutPrograms[application.id] ? 'Opted out' : application.statusReason}`}
+        {@const message = `${getApplicationStatusInfo(application.status, ineligibilityInfo.phase, ineligibilityInfo.closedAt, application.rescindedStatus)[0].label}${application.statusReason ?? optedOutPrograms[application.id] ? ':' : ''} ${optedOutPrograms[application.id] ? 'Opted out' : application.statusReason}`}
         <span class='py-2'>{application.title}</span>
         <StatusMessageList
           icon

@@ -451,7 +451,7 @@ export const periodConfigCache = new Cache(async (periodId: string) => {
     result[config.key] = configDataByKey[config.key]?.data ?? {}
   }
   return result
-}, { freshseconds: 30 * 1000 }) // cache for 30 seconds
+}, { freshseconds: 30 }) // cache for 30 seconds
 
 export const programAliasCache = new Cache(async () => {
   const keys = programRegistry.keys()

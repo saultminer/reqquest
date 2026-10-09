@@ -3,7 +3,7 @@ import { error } from '@sveltejs/kit'
 import { APIBase, type MutationResponseFromAPI } from '@txstate-mws/sveltekit-utils'
 import type { Feedback } from '@txstate-mws/svelte-forms'
 import { DateTime } from 'luxon'
-import { omit, pick } from 'txstate-utils'
+import { keyby, omit, pick } from 'txstate-utils'
 import {
   createClient, enumAppRequestIndexDestination, enumIneligiblePhases, enumPromptVisibility, enumRequirementStatus, enumRequirementType,
   type AccessRoleGrantCreate, type AccessRoleGrantUpdate, type AccessRoleGroup, type AccessRoleInput, type AccessUserFilter,
@@ -14,6 +14,8 @@ import {
 import { applicantVisiblePromptVisibilities } from './status-utils.js'
 
 export const showDupePrompts = PUBLIC_SHOW_DUPLICATE_PROMPTS.trim() === 'true'
+// the per-key configuration fields attached to prompt instances client-side, see API.attachPromptConfigs
+export type PromptConfig = { configurationData: Record<string, any>, gatheredConfigData: Record<string, any> }
 export type DashboardAppRequest = Awaited<ReturnType<typeof api.getApplicantRequests>>[number]
 export type AppRequestForExportResponse = Awaited<ReturnType<typeof api.getAppRequestForExport>>
 export type PromptForEditing = Awaited<ReturnType<typeof api.getApplicantPrompt>>['prompt']
@@ -572,8 +574,6 @@ class API extends APIBase {
               moot: true,
               invalidated: true,
               invalidatedReason: true,
-              configurationData: true,
-              gatheredConfigData: true,
               optOut: true
             }
           }
@@ -586,11 +586,16 @@ class API extends APIBase {
     })
     if (response.appRequests.length === 0) throw error(404, 'Application request not found')
     type ResponseAppRequest = (typeof response)['appRequests'][0]
-    type ResponseApplication = ResponseAppRequest['applications'][0]
-    type ResponseRequirement = ResponseApplication['requirements'][0]
-    type ResponsePrompt = ResponseRequirement['prompts'][0]
+    type ResponseApplication = ResponseAppRequest['applications'][0] & { requirements: ResponseRequirement[] }
+    type ResponseRequirement = ResponseAppRequest['applications'][0]['requirements'][0] & { prompts: ResponsePrompt[] }
+    type ResponsePrompt = ResponseAppRequest['applications'][0]['requirements'][0]['prompts'][0] & PromptConfig
 
-    const splitInfo = API.splitPromptsForApplicant<ResponsePrompt, ResponseRequirement, ResponseApplication>(response.appRequests[0]?.applications ?? [])
+    // configuration is per prompt key, not per prompt instance, so it is fetched once per key rather than
+    // repeated under every program and requirement that shares the prompt
+    const applications = (response.appRequests[0]?.applications ?? []) as ResponseApplication[]
+    await this.attachPromptConfigs(appRequestId, applications)
+
+    const splitInfo = API.splitPromptsForApplicant<ResponsePrompt, ResponseRequirement, ResponseApplication>(applications)
     return {
       ...omit(splitInfo, 'applicationsForNavNoDupes', 'applicationsForNavWithDupes', 'applicationsReviewNoDupes', 'applicationsReviewWithDupes'),
       applicationsForNav: showDupePrompts ? splitInfo.applicationsForNavWithDupes : splitInfo.applicationsForNavNoDupes,
@@ -958,7 +963,7 @@ class API extends APIBase {
     return response.appRequests[0]
   }
 
-  async getReviewData (appRequestId: string) {
+  async getReviewData (appRequestId: string, programKey?: string) {
     const response = await this.client.query({
       __name: 'GetReviewData',
       appRequests: {
@@ -972,6 +977,7 @@ class API extends APIBase {
         closedAt: true,
         data: true,
         applications: {
+          ...(programKey ? { __args: { programKeys: [programKey] } } : {}),
           id: true,
           phase: true,
           status: true,
@@ -1018,8 +1024,6 @@ class API extends APIBase {
               navTitle: true,
               answered: true,
               visibility: true,
-              configurationData: true,
-              gatheredConfigData: true,
               moot: true,
               invalidated: true,
               invalidatedReason: true,
@@ -1061,7 +1065,12 @@ class API extends APIBase {
     })
     if (response.appRequests.length === 0) return undefined
     const appRequest = response.appRequests[0]
-    return { ...appRequest, applications: appRequest.applications.map(a => ({ ...a, requirements: a.requirements.map(r => ({ ...r, prompts: r.prompts })) })) }
+    type ResponsePrompt = (typeof appRequest)['applications'][0]['requirements'][0]['prompts'][0] & PromptConfig
+    type ResponseRequirement = Omit<(typeof appRequest)['applications'][0]['requirements'][0], 'prompts'> & { prompts: ResponsePrompt[] }
+    type ResponseApplication = Omit<(typeof appRequest)['applications'][0], 'requirements'> & { requirements: ResponseRequirement[] }
+    const applications = appRequest.applications as ResponseApplication[]
+    await this.attachPromptConfigs(appRequestId, applications)
+    return { ...appRequest, applications }
   }
 
   async getRequestActivity (appRequestId: string, filters?: AppRequestActivityFilters, paged?: Pagination) {
@@ -1117,6 +1126,83 @@ class API extends APIBase {
     })
     const appRequest = response.appRequests[0]
     return { ...appRequest.prompt, dataVersion: appRequest.dataVersion }
+  }
+
+  /**
+   * What the reviewer sidebar's "Ineligibility Information" dialog shows: every application's outcome plus
+   * the statuses behind it. Loaded when the dialog opens, since the review page itself only carries the
+   * displayed program.
+   */
+  async getIneligibilityInfo (appRequestId: string) {
+    const response = await this.client.query({
+      __name: 'GetIneligibilityInfo',
+      appRequests: {
+        __args: { filter: { ids: [appRequestId] } },
+        id: true,
+        phase: true,
+        closedAt: true,
+        applications: {
+          id: true,
+          title: true,
+          status: true,
+          statusReason: true,
+          rescindedStatus: true,
+          requirements: {
+            id: true,
+            status: true,
+            statusReason: true,
+            prompts: {
+              optOut: true
+            }
+          }
+        }
+      }
+    })
+    return response.appRequests[0]
+  }
+
+  async getPromptConfigs (appRequestId: string, promptIds: string[]) {
+    if (!promptIds.length) return []
+    const response = await this.client.query({
+      __name: 'GetPromptConfigs',
+      appRequests: {
+        __args: { filter: { ids: [appRequestId] } },
+        applications: {
+          requirements: {
+            prompts: {
+              __args: { filter: { ids: promptIds } },
+              id: true,
+              key: true,
+              configurationData: true,
+              gatheredConfigData: true
+            }
+          }
+        }
+      }
+    })
+    return response.appRequests[0]?.applications.flatMap(a => a.requirements.flatMap(r => r.prompts)) ?? []
+  }
+
+  private async attachPromptConfigs<P extends { id: string, key: string, visibility: PromptVisibility, moot: boolean | null }> (appRequestId: string, applications: { requirements: { prompts: P[] }[] }[]) {
+    const representativeByKey: Record<string, string> = {}
+    const instancesByKey: Record<string, P[]> = {}
+    for (const application of applications) {
+      for (const requirement of application.requirements) {
+        for (const prompt of requirement.prompts) {
+          (instancesByKey[prompt.key] ??= []).push(prompt)
+          if (representativeByKey[prompt.key] == null && !prompt.moot && prompt.visibility !== enumPromptVisibility.UNREACHABLE) representativeByKey[prompt.key] = prompt.id
+        }
+      }
+    }
+    const configs = await this.getPromptConfigs(appRequestId, Object.values(representativeByKey))
+    const configByKey = keyby(configs, 'key')
+    for (const [key, instances] of Object.entries(instancesByKey)) {
+      const config = configByKey[key]
+      for (const prompt of instances) {
+        (prompt as P & PromptConfig).configurationData = config?.configurationData ?? {}
+        ;(prompt as P & PromptConfig).gatheredConfigData = config?.gatheredConfigData ?? {}
+      }
+    }
   }
 
   async getPromptDataLegion (appRequestId: string, promptIds: string[]) {

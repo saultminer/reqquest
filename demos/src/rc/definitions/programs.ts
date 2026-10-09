@@ -14,6 +14,7 @@ const operations_infrastructure: ProgramDefinition = {
   requirementKeys: [
     'operations_infrastructure_opt_out_req',
     'step1_prequal_req',
+    'weekend_coverage_req',
     'written_automation_req',
     'evidence_automation_req',
     'investigated_future_career_req',
@@ -101,6 +102,7 @@ const application_management_support: ProgramDefinition = {
   requirementKeys: [
     'application_management_opt_out_req',
     'step1_prequal_req',
+    'weekend_coverage_req',
     'technical_troubleshooting_req',
     'assess_technical_troubleshootingn_req',
     'support_communication_req',

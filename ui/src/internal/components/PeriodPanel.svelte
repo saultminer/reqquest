@@ -10,6 +10,8 @@
 
   export let program: any
   export let sharedProgramRequirements: any
+  /** program title by key, to name the program a shared requirement is listed under */
+  export let programTitles: Record<string, string> = {}
   export let openModal: any
   export let onClick: any
   export let uiRegistry: UIRegistry
@@ -24,9 +26,18 @@
     await invalidate('api:getPeriodConfigurations')
   }
 
-  $: enabledRequirements = Object.entries(groupby(program.requirements.filter(r => r.enabled), 'type'))
-  $: disabledRequirements = program.requirements.filter(r => !r.enabled)
+  type PeriodRequirement = { key: string, title: string, type: string, enabled: boolean, configuration: { actions: { update: boolean } }, prompts: { key: string, title: string, configuration: { actions: { update: boolean } } }[] }
+  $: enabledRequirements = Object.entries(groupby(program.requirements.filter((r: PeriodRequirement) => r.enabled) as PeriodRequirement[], 'type'))
+  $: disabledRequirements = program.requirements.filter((r: PeriodRequirement) => !r.enabled) as PeriodRequirement[]
 
+  // configuration is stored once per period, not once per program, so a requirement shared with an earlier
+  // program is shown in full there and abbreviated here - a page with many programs would otherwise repeat
+  // the same prompts and settings under every one of them
+  const sharedWith = (requirementKey: string): string[] => sharedProgramRequirements[requirementKey] ?? []
+  const configuredUnder = (requirementKey: string): string | undefined => {
+    const owners = sharedWith(requirementKey)
+    return owners.length > 1 && owners[0] !== program.key ? owners[0] : undefined
+  }
 </script>
   <Panel title={program.title} expandable expanded noPrimaryAction actions={[{ label: 'Rename program', onClick: onClick('program', program), disabled: !program.configuration.actions.update }]}>
     {#each enabledRequirements as requrementEntries, i (i)}
@@ -46,6 +57,18 @@
           <TabContent>
             {#each requirements as requirement (requirement.key)}
               {@const reqDef = uiRegistry.getRequirement(requirement.key)}
+              {@const owner = configuredUnder(requirement.key)}
+              {#if owner}
+              <Panel title={requirement.title} noPrimaryAction actions={[{ label: 'Disable Requirement', onClick: disablePeriodProgram(requirement.key) }]}>
+                <div style="display: content" slot="headerLeft">
+                  <TagSet tags={[{ label: 'Requirement', type: 'yellow' }]} />
+                </div>
+                <div style="display: content" slot="headerRight">
+                  <TagSet tags={[{ label: `Shared with ${sharedWith(requirement.key).length - 1} other ${pluralize('program', sharedWith(requirement.key).length - 1)}`, onClick: openModal(requirement.key) }]} />
+                </div>
+                <p class="shared-note">Configured once for the period. Its prompts and settings are listed under {programTitles[owner] ?? owner}; changes made there apply here too.</p>
+              </Panel>
+              {:else}
               <Panel title={requirement.title} expandable noPrimaryAction actions={[{ label: 'Configure requirement', onClick: onClick('requirement', requirement), disabled: reqDef?.configureComponent == null || !requirement.configuration.actions.update }, { label: 'Disable Requirement', onClick: disablePeriodProgram(requirement.key) }]}>
                 <div style="display: content" slot="headerLeft">
                   <TagSet tags={[{ label: 'Requirement', type: 'yellow' }]} />
@@ -73,6 +96,7 @@
                   {/each}
                 </ul>
               </Panel>
+              {/if}
             {/each}
           </TabContent>
           <TabContent>
@@ -94,3 +118,10 @@
     </Panel>
     {/each}
   </Panel>
+
+<style>
+  .shared-note {
+    margin: 0;
+    color: var(--cds-text-secondary, #525252);
+  }
+</style>

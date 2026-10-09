@@ -466,6 +466,41 @@ so `resolve` must tolerate the data being absent, and a late answer should only 
 forward. Flipping a requirement to DISQUALIFYING after the applicant has already moved past it pulls the
 rug out from under them.
 
+### Shared Requirements and Program Context
+_This is an advanced topic too._
+
+A requirement may appear in any number of programs. `resolve` only ever sees the requirement's own prompt
+data and the period's configuration, and both are the same whichever program is asking, so a shared
+requirement is evaluated once per request and every program that lists it reuses the answer. Sharing is
+free, and it is the normal way to build a system with many programs that ask the same questions.
+
+Occasionally a shared requirement needs to know which program it is deciding for - the same answer might
+disqualify in one program and merely warn in another. For that, `resolve` receives a fourth argument, a
+`program` selector. Name the properties you need and you receive just those:
+
+```ts
+resolve: (data, config, configLookup, program) => {
+  if (data.weekend_availability_prompt?.weekendAvailable) return { status: RequirementStatus.MET }
+  const { key, title } = program({ key: true, title: true })
+  if (key === 'operations') return { status: RequirementStatus.DISQUALIFYING, reason: `${title} requires weekend on-call availability` }
+  return { status: RequirementStatus.WARNING, reason: `${title} prefers weekend availability` }
+}
+```
+
+Available properties are `key`, `title` and `navTitle` (as they read in the request's period, label
+overrides applied), `requirementIndex` (the requirement's position in the program's order) and
+`priorStatuses` (the statuses of the requirements evaluated ahead of this one in the same application,
+by key). `priorStatuses` is how a requirement reacts to an earlier requirement's outcome; it does not get
+that requirement's answers.
+
+Reading program context is what turns a once-per-request evaluation into a per-program one, so the
+selector is deliberately the only way to get at it. The result is then reused only among programs where
+every property the requirement read has the same value: read `key` and it runs once per program, read only
+`requirementIndex` and it runs once per distinct position. The cost is paid per call path, not per
+requirement. In the example above a "yes" never touches the selector, so for applicants who answer yes
+the requirement still runs once for the whole request. Ask only on the paths that need it, and ask only
+for what that path needs.
+
 ### Reviewer Screen Layout
 The reviewer sees every requirement of an application on one screen, grouped into panels by requirement
 type: "General Questions" (PREQUAL), a panel titled with the program name (QUALIFICATION and POSTQUAL),

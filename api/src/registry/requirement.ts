@@ -34,6 +34,42 @@ export interface NoDisplayPromptKey {
   gate?: boolean
 }
 
+/**
+ * What a requirement may learn about the program it is being evaluated for. Requested through the
+ * `program` selector passed to `resolve`, never handed over whole, so that the system knows exactly
+ * which of these a requirement depends on.
+ */
+export interface ProgramContext {
+  /** The program's key. */
+  key: string
+  /** The program's title as it reads in this request's period, label overrides applied. */
+  title: string
+  /** The program's navigation title in this request's period. */
+  navTitle: string
+  /** This requirement's position in the program's evaluation order, starting at 0. */
+  requirementIndex: number
+  /**
+   * The statuses of the requirements evaluated ahead of this one in the same application, by
+   * requirement key. Only requirements this evaluation pass consults are present; later ones never are.
+   */
+  priorStatuses: Record<string, RequirementStatus>
+}
+
+/**
+ * Ask for program context from inside `resolve`. Name the properties you want and you receive just
+ * those: `const { key, title } = program({ key: true, title: true })`.
+ *
+ * Calling it has a cost that is worth knowing about. A requirement shared by many programs is
+ * normally evaluated once per request and the result reused for every program, because nothing it
+ * can see differs between them. The moment it reads program context, the result is reused only
+ * among programs where every property it read has the same value. Read `key` and it runs once per
+ * program. Read only `requirementIndex` and it runs once per distinct position. Call it only on the
+ * code paths that need it, and ask only for what that path needs.
+ */
+export type ProgramSelector = <K extends keyof ProgramContext>(select: { [P in K]: true }) => Pick<ProgramContext, K>
+
+export type ResolveResult = { status: RequirementStatus, reason?: string, blame?: PromptKey[] }
+
 export interface RequirementDefinition<ConfigurationDataType = any> {
   /**
    * A globally unique, human and machine readable key. This will be used to match up with
@@ -169,22 +205,27 @@ export interface RequirementDefinition<ConfigurationDataType = any> {
    *
    * These values will be cached until the appRequest is updated in some way.
    *
-   * You'll receive the appRequestData, the configuration data, and a lookup object that
+   * You'll receive the appRequestData, the configuration data, a lookup object that
    * contains the configuration data for all requirements and prompts in the system, in
-   * case you need to rely on the configuration from one of the required prompts.
+   * case you need to rely on the configuration from one of the required prompts, and a
+   * `program` selector for the rare requirement whose answer depends on which program it is
+   * evaluating for (see `ProgramSelector`). Most requirements never need the fourth parameter and
+   * should simply leave it off.
    *
-   * NOTE: The appRequest data passed to this function will only include data from prompts
-   * that are required by this requirement and requirements that appear before this one
-   * in execution order. This is to prevent situations where answering a prompt late in the
-   * application process could change the determination made earlier in the process. You'll
-   * have to carefully design and order your requirements to ensure that the data you need
-   * is available to you.
+   * NOTE: The appRequest data passed to this function will only include data from the prompts this
+   * requirement lists in `promptKeys`, `promptKeysAnyOrder` and `promptKeysNoDisplay`, and only
+   * once each has been answered. Data from other requirements' prompts is not passed, so a
+   * requirement that must react to an earlier requirement's outcome asks the selector for
+   * `priorStatuses` rather than reading that requirement's answers.
    *
-   * The one exception is a prompt listed in `promptKeysNoDisplay` with `gate: false`, which is
-   * explicitly allowed to show up late and change this requirement's determination. Anything
-   * you receive that way may be `undefined` on one call and populated on the next.
+   * A prompt listed in `promptKeysNoDisplay` with `gate: false` is explicitly allowed to show up
+   * late and change this requirement's determination. Anything you receive that way may be
+   * `undefined` on one call and populated on the next.
+   *
+   * Pure requirements - those that never call `program` - are evaluated once per request however
+   * many programs share them. See `ProgramSelector` for what reading program context costs.
    */
-  resolve: (appRequestData: AppRequestData, config: ConfigurationDataType, configLookup: Record<string, any>) => { status: RequirementStatus, reason?: string, blame?: PromptKey[] }
+  resolve: (appRequestData: AppRequestData, config: ConfigurationDataType, configLookup: Record<string, any>, program: ProgramSelector) => ResolveResult
   /**
    * Often, you will want to allow application administrators to control various aspects of
    * how requirements will be evaluated. For example, you might want administrators to

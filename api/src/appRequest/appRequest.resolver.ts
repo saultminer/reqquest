@@ -28,9 +28,12 @@ export class AppRequestResolver {
     return user
   }
 
-  @FieldResolver(type => [Application])
-  async applications (@Ctx() ctx: RQContext, @Root() appRequest: AppRequest) {
-    return await ctx.svc(ApplicationService).findByAppRequest(appRequest)
+  @FieldResolver(type => [Application], { description: 'The applications on this request, one per program. Pass programKeys to receive only some of them - a screen that shows one program should not download every program\'s requirement and prompt tree.' })
+  async applications (@Ctx() ctx: RQContext, @Root() appRequest: AppRequest, @Arg('programKeys', type => [String], { nullable: true }) programKeys?: string[]) {
+    const applications = await ctx.svc(ApplicationService).findByAppRequest(appRequest)
+    if (!programKeys?.length) return applications
+    const wanted = new Set(programKeys)
+    return applications.filter(a => wanted.has(a.programKey))
   }
 
   @FieldResolver(type => RequirementPrompt, { description: 'Retrieve a specific prompt by its ID. This is useful for the UI to get the full prompt data and configuration when trying to edit an individual prompt. We don\'t want to be downloading all the config data for everything up front.' })

@@ -110,6 +110,7 @@ test.describe.serial('App Request - auto-complete programs with no reviewer work
   test('Every program without reviewer work - submit completes the whole request', async ({ applicantRequest, suRequest }) => {
     autoCompletedId = await createAndSubmit(applicantRequest.graphql, 'applicant', noReviewPeriodId, promptMapApplicantQualified)
     const state = await getState(suRequest.graphql, autoCompletedId)
+    for (const key of catReviewerRequirements) expect(application(state, cat).requirements.find(r => r.key === key), key).toBeUndefined()
     expect(state.phase).toEqual('COMPLETE')
     expect(state.status).toEqual('APPROVED')
     for (const app of state.applications) expect(app.phase, app.programKey).toEqual('COMPLETE')

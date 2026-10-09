@@ -388,7 +388,11 @@ type AppRequest {
   """Actions the user can take on this app request."""
   actions: AppRequestActions!
   applicant: AccessUser!
-  applications: [Application!]!
+
+  """
+  The applications on this request, one per program. Pass programKeys to receive only some of them - a screen that shows one program should not download every program's requirement and prompt tree.
+  """
+  applications(programKeys: [String!]): [Application!]!
 
   """
   True when at least one reachable prompt anywhere on this request has been invalidated and must be re-answered. Status and phase are computed from the answers on file, so use this flag to explain that the request is held back awaiting a correction.
@@ -1526,7 +1530,9 @@ type Mutation {
   roleUpdate(role: AccessRoleInput!, roleId: ID!, validateOnly: Boolean): AccessRoleValidatedResponse!
   roleUpdateGrant(grant: AccessRoleGrantUpdate!, grantId: ID!, validateOnly: Boolean): AccessRoleValidatedResponse!
 
-  """Submit the app request."""
+  """
+  Submit the app request. Applications whose program has no reviewer questions (no PREAPPROVAL or APPROVAL requirements) advance on their own into their first blocking workflow stage or to REVIEW_COMPLETE; when nothing is left to review, the review is completed automatically as well. Applications ruled out before submission (PREQUAL or QUALIFICATION) do not hold that back.
+  """
   submitAppRequest(appRequestId: ID!): ValidatedAppRequestResponse!
 
   """Toggle an existing note's persistent status."""

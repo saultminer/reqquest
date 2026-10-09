@@ -1,5 +1,30 @@
 import { RequirementDefinition, RequirementStatus, RequirementType } from '@reqquest/api'
-import { AssessReccomendationLettersData, minimumGpa, OverrideGPAWarningData, PreQualPromptData, ReccomendationLettersData } from '../models/index.js'
+import { AssessReccomendationLettersData, HelpDeskWeekendAvailabilityData, minimumGpa, OverrideGPAWarningData, PreQualPromptData, ReccomendationLettersData } from '../models/index.js'
+
+/**
+ * One requirement, two programs, two standards. Operations & Infrastructure carries weekend on-call, so
+ * no weekend availability rules the applicant out; Application Management & Support only prefers it, so
+ * the same answer is a warning there.
+ *
+ * It asks the `program` selector for the key only when the answer is "no". When the answer is "yes" it
+ * never looks, so it is evaluated once for the whole request and both programs reuse the result.
+ */
+export const weekend_coverage_req: RequirementDefinition = {
+  type: RequirementType.QUALIFICATION,
+  key: 'weekend_coverage_req',
+  title: 'Weekend Coverage',
+  navTitle: 'Weekend Coverage',
+  description: 'Operations & Infrastructure requires weekend on-call availability; Application Management & Support prefers it',
+  promptKeys: ['help_desk_weekend_availability_prompt'],
+  resolve: (data, config, configLookup, program) => {
+    const promptData = data['help_desk_weekend_availability_prompt'] as HelpDeskWeekendAvailabilityData
+    if (promptData?.weekendAvailable == null) return { status: RequirementStatus.PENDING }
+    if (promptData.weekendAvailable) return { status: RequirementStatus.MET }
+    const { key, title } = program({ key: true, title: true })
+    if (key === 'operations_infrastructure') return { status: RequirementStatus.DISQUALIFYING, reason: `${title} requires weekend on-call availability`, blame: ['help_desk_weekend_availability_prompt'] }
+    return { status: RequirementStatus.WARNING, reason: `${title} prefers weekend availability`, blame: ['help_desk_weekend_availability_prompt'] }
+  }
+}
 
 export const reccomendation_letter_req: RequirementDefinition = {
   type: RequirementType.QUALIFICATION,

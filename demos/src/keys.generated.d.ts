@@ -169,6 +169,7 @@ declare module '@reqquest/api' {
       | 'technical_troubleshooting_req'
       | 'terms_and_conditions_post_qual_req'
       | 'thanks_or_no_thanks_req'
+      | 'weekend_coverage_req'
       | 'which_state_req'
       | 'written_automation_req'
       | 'yard_qual_req'

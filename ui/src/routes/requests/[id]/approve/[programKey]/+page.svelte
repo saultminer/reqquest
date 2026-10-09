@@ -235,7 +235,7 @@
 {#if nothingToReview}
   <SystemDeterminationNotice programTitle={application.title} />
 {/if}
-<ApproveLayout {basicRequestData} {appRequest}>
+<ApproveLayout {basicRequestData}>
   <svelte:fragment slot="sidebar">
     <InfoCard title={application.title} tags={applicationStatusTags} tagsInBody />
     <AppRequestActions {application} {basicRequestData} {requestId} />

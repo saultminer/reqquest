@@ -12,6 +12,7 @@
   $: ({ programs, period } = data)
 
   $: programsByKey = keyby(programs, 'key')
+  $: programTitles = Object.fromEntries(programs.map(p => [p.key, p.title])) as Record<string, string>
   $: sharedProgramRequirements = programs.reduce<Record<string, string[] | undefined>>((acc, curr) => {
     curr.requirements.forEach(r => {
       acc[r.key] ??= []
@@ -97,12 +98,12 @@
   <svelte:fragment slot='content'>
     <TabContent>
       {#each enabledPrograms as program (program.key)}
-        <PeriodPanel {program} {sharedProgramRequirements} {openModal} {onClick} {uiRegistry} />
+        <PeriodPanel {program} {sharedProgramRequirements} {programTitles} {openModal} {onClick} {uiRegistry} />
       {/each}
     </TabContent>
     <TabContent>
       {#each disabledPrograms as program (program.key)}
-        <PeriodPanel {program} {sharedProgramRequirements} {openModal} {onClick} {uiRegistry} />
+        <PeriodPanel {program} {sharedProgramRequirements} {programTitles} {openModal} {onClick} {uiRegistry} />
       {/each}
     </TabContent>
   </svelte:fragment>

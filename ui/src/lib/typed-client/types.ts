@@ -103,7 +103,7 @@ export default {
                 91
             ],
             "description": [
-                89
+                91
             ],
             "label": [
                 91
@@ -290,7 +290,7 @@ export default {
         },
         "AccessTag": {
             "description": [
-                89
+                91
             ],
             "label": [
                 91
@@ -507,7 +507,13 @@ export default {
                 17
             ],
             "applications": [
-                37
+                37,
+                {
+                    "programKeys": [
+                        91,
+                        "[String!]"
+                    ]
+                }
             ],
             "awaitingCorrection": [
                 47
@@ -851,7 +857,7 @@ export default {
                 91
             ],
             "hiddenIneligiblePreSubmit": [
-                45
+                47
             ],
             "id": [
                 55
@@ -1939,7 +1945,7 @@ export default {
                 91
             ],
             "configuration": [
-                48
+                50
             ],
             "eligibilityDescription": [
                 91

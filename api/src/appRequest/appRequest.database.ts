@@ -236,19 +236,19 @@ export async function countAppRequestApplicants (filter?: AppRequestFilter, tdb:
   const { joins, where, binds } = processFilters(filter)
   const priorBinds: any[] = []
   const priorStatusList = db.in(priorBinds, unsubmittedStatuses)
-  const row = await tdb.getrow<{ total: number, returning: number }>(`
+  const row = await tdb.getrow<{ total: number, returningCount: number }>(`
     SELECT COUNT(DISTINCT ar.id) AS total,
       COUNT(DISTINCT CASE WHEN EXISTS (
         SELECT 1 FROM app_requests prev INNER JOIN periods pp ON pp.id = prev.periodId
         WHERE prev.userId = ar.userId AND pp.openDate < p.openDate AND prev.computedStatus NOT IN (${priorStatusList})
-      ) THEN ar.id END) AS returning
+      ) THEN ar.id END) AS returningCount
     FROM app_requests ar
     INNER JOIN periods p ON p.id = ar.periodId
     ${Array.from(joins.values()).join('\n')}
     ${where.length === 0 ? '' : `WHERE (${where.join(') AND (')})`}
   `, [...priorBinds, ...binds])
   const total = Number(row?.total ?? 0)
-  const returning = Number(row?.returning ?? 0)
+  const returning = Number(row?.returningCount ?? 0)
   return { firstTime: total - returning, returning }
 }
 

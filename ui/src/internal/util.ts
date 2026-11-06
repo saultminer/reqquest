@@ -12,6 +12,11 @@ export function longNumericTime (dt: DateTime | string) {
   return dateTime.toFormat('MM/dd/yyyy h:mm a')
 }
 
+export function exportTimestamp (dt: DateTime | string) {
+  const dateTime = typeof dt === 'string' ? DateTime.fromISO(dt) : dt
+  return dateTime.toFormat("MM/dd/yyyy 'at' hh:mma")
+}
+
 export function machineDateTime (dt: DateTime | string) {
   const dateTime = typeof dt === 'string' ? DateTime.fromISO(dt) : dt
   return dateTime.toISO({ suppressMilliseconds: true })

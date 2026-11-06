@@ -4,12 +4,15 @@
   import { Panel, TagSet } from '@txstate-mws/carbon-svelte'
   import { Button, InlineNotification, Tooltip } from 'carbon-components-svelte'
   import Edit from 'carbon-icons-svelte/lib/Edit.svelte'
+  import Time from 'carbon-icons-svelte/lib/Time.svelte'
+  import { DateTime } from 'luxon'
   import type { AnsweredPrompt, PromptSection, AppRequestForDetails, ApplicationForDetails, Scalars } from '@reqquest/ui'
   import { enumApplicationStatus, enumRequirementType } from '@reqquest/ui'
   import type { UIRegistry } from '@reqquest/ui'
   import RenderDisplayComponent from './RenderDisplayComponent.svelte'
   import ApplicantProgramList from './ApplicantProgramList.svelte'
   import WarningIconYellow from './WarningIconYellow.svelte'
+  import { exportTimestamp } from '../util.js'
 
   // TODO: design alignement could reduce props here
   export let appRequest: AppRequestForDetails
@@ -29,6 +32,11 @@
   export let showTooltipsAsText = false
   /** Apply print-export styles: hide app chrome and paginate by prompt row rather than by panel. */
   export let printMode = false
+  /** Show an "Exported <date> at <time>" line under the title. Defaults on for print-export screens. */
+  export let showExportTimestamp = printMode
+
+  // refreshed on beforeprint so a printed/PDF copy carries the time it was actually exported
+  let exportedAt = DateTime.now()
   /** Title of the panel listing applications the applicant is ineligible for. */
   export let ineligibleTitle = 'Ineligible benefits'
   /** Shown below the program list when a listed application is ineligible. Nothing shown when unset. */
@@ -98,12 +106,21 @@
   }
 </script>
 
+<svelte:window on:beforeprint={() => { exportedAt = DateTime.now() }} />
+
 {#if appRequest}
   <div class="[ my-6 ] application-details flow" class:print-mode={printMode}>
     <!-- Application Status Panel -->
     <header class="[ mb-12 ] app-view-intro text-center">
       <h2 class="[ text-2xl mb-3 font-bold ]">{title}</h2>
-      <p class="app-view-subtitle mb-3">{subtitle}</p>
+      {#if subtitle}
+        <p class="app-view-subtitle mb-3">{subtitle}</p>
+      {/if}
+      {#if showExportTimestamp}
+        <p class="export-timestamp [ flex items-center justify-center gap-2 mb-3 ]">
+          <Time aria-hidden="true" /> Exported {exportTimestamp(exportedAt)}
+        </p>
+      {/if}
     </header>
     <section class="prompt-section">
       <div class="status-content">
@@ -240,6 +257,12 @@
       </Panel>
     {/if}
 
+    {#if printMode}
+      <div class="print-actions">
+        <Button on:click={() => window.print()}>Print</Button>
+      </div>
+    {/if}
+
     <slot name="footer" />
   </div>
 {:else}
@@ -357,7 +380,27 @@
     --cds-icon-01: var(--cds-link-01);
   }
 
+  .print-mode {
+    /* keep the last row clear of the floating print button */
+    padding-bottom: 4rem;
+  }
+
+  .print-actions {
+    position: fixed;
+    right: 2rem;
+    bottom: 2rem;
+    z-index: 10;
+  }
+
   @media print {
+    .print-mode {
+      padding-bottom: 0;
+    }
+
+    .print-actions {
+      display: none;
+    }
+
     :global(body:has(.application-details.print-mode) .bx--header),
     :global(body:has(.application-details.print-mode) .breadcrumbs) {
       display: none !important;

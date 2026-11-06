@@ -194,7 +194,7 @@ import { api } from '$internal/api'
 import ApplicantPromptSkeleton from '$internal/components/ApplicantPromptSkeleton.svelte'
 import { GeneralTextSkeleton } from '@txstate-mws/carbon-svelte'
 
-const { appName, applicantDashboardIntroHeader, applicantDashboardIntroDetail, applicantDashboardRecentDays, applicantPromptPage, applicantReview, programs, requirements, prompts, userLookup, slots, profileLinks } = configureDemoInstanceParams()
+const { appName, applicantDashboardIntroHeader, applicantDashboardIntroDetail, applicantDashboardRecentDays, applicantPromptPage, applicantPrograms, applicantReview, programs, requirements, prompts, userLookup, slots, profileLinks } = configureDemoInstanceParams()
 
 export const uiRegistry = new UIRegistry({
   appName,
@@ -202,6 +202,7 @@ export const uiRegistry = new UIRegistry({
   applicantDashboardIntroDetail,
   applicantDashboardRecentDays,
   applicantPromptPage,
+  applicantPrograms,
   applicantReview,
   programs,
   requirements,
@@ -544,9 +545,14 @@ function configureDemoInstanceParams (): AnyUIConfig {
     applicantDashboardIntroHeader: 'Start your Pet Journey Here!',
     applicantDashboardIntroDetail: 'Submitting an adoption application is the first step in adopting a cat or dog. Based on your responses you will receive a list of "eligible benefits."',
     applicantDashboardRecentDays: 30,
+    applicantPrograms: {
+      title: 'Critters you may adopt',
+      ineligibleTitle: 'Critters you cannot adopt yet'
+    },
     applicantReview: {
       title: 'Review your critter application',
-      subTitle: 'Confirm the critter benefits shown are the ones you are requesting and that your responses are correct, or make changes before submitting.'
+      subTitle: 'Confirm the critter benefits shown are the ones you are requesting and that your responses are correct, or make changes before submitting.',
+      ineligibleTitle: 'Critters not included in this application'
     },
     slots: {
       applicantDashboardIntroSlot: DefaultIntroPanelDefaultSlot

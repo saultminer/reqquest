@@ -11,6 +11,10 @@
   import { enumApplicationStatus } from '@reqquest/ui'
 
   export let data: PageData
+
+  const cfg = uiRegistry.config.applicantPrograms
+  const maxWidth = cfg?.maxWidth ?? true
+
   $: ({ applicationsForNav, appRequestForExport } = data)
   $: eligibleApplicationsForNav = applicationsForNav.filter(a => a.ineligiblePhase == null)
   $: ineligibleApplicationsForNav = applicationsForNav.filter(a => isIneligibleByApplicantRequirement(a) && !isHiddenFromApplicant(a))
@@ -30,33 +34,39 @@
   })
 </script>
 
-<ProgressNavContainer title="Your potential benefits" subtitle={noProgramsToList ? (uiRegistry.config.applicantNoProgramsMessage ?? DEFAULT_APPLICANT_NO_PROGRAMS_MESSAGE) : 'Based on your responses so far, you may be eligible for the benefits listed below.  If you believe you qualify for additional benefits, you may need to review your answers, complete additional questions, or provide supporting documentation before eligibility can be confirmed.'}>
-  <div class="max-w-screen-md mx-auto">    
+<ProgressNavContainer {maxWidth} title={cfg?.title ?? 'Your potential benefits'} subtitle={noProgramsToList ? (cfg?.noProgramsMessage ?? uiRegistry.config.applicantNoProgramsMessage ?? DEFAULT_APPLICANT_NO_PROGRAMS_MESSAGE) : (cfg?.subTitle ?? 'Based on your responses so far, you may be eligible for the benefits listed below.  If you believe you qualify for additional benefits, you may need to review your answers, complete additional questions, or provide supporting documentation before eligibility can be confirmed.')}>
+  <div class:max-w-screen-md={maxWidth} class:mx-auto={maxWidth}>
     {#if eligibleApplicationsForNav.length > 0} 
       <ApplicantProgramList applications={eligibleApplicationsForNav} appRequest={appRequestForExport} />
     {/if}
     {#if eligibleApplicationsForNav.some(a => a.status === enumApplicationStatus.INELIGIBLE)}
       <div class="program-helptext">
-        If you believe you should be eligible, read the tooltips above and review your answers. If you believe there is an error, please contact us.
+        {cfg?.ineligibleHelpText ?? 'If you believe you should be eligible, read the tooltips above and review your answers. If you believe there is an error, please contact us.'}
       </div>
     {/if}
   </div>
   {#if ineligibleApplicationsForNav.length > 0}  
-    <div class="max-w-screen-md mx-auto">    
-      <Panel title="Ineligible benefits" expandable={true} expanded={true}>
+    <div class:max-w-screen-md={maxWidth} class:mx-auto={maxWidth}>
+      <Panel title={cfg?.ineligibleTitle ?? 'Ineligible benefits'} expandable={true} expanded={true}>
         <ApplicantProgramList applications={ineligibleApplicationsForNav} appRequest={appRequestForExport} />
       </Panel>
     </div>
   {/if}
+  {#if uiRegistry.config.supportUrl}
+    <p class="text-center mt-6">{cfg?.supportText ?? 'If you think this was a mistake please review your answers or reach out through the support page.'}</p>
+  {/if}
   <div class='form-submit flex gap-12 justify-center mt-16'>
     {#if prevHref}
-      <Button kind="ghost" href={prevHref}>Back</Button>
+      <Button kind="ghost" href={prevHref}>{cfg?.backButtonText ?? 'Back'}</Button>
+    {/if}
+    {#if uiRegistry.config.supportUrl}
+      <Button kind="ghost" href={uiRegistry.config.supportUrl}>{cfg?.supportButtonText ?? 'Support'}</Button>
     {/if}
     <Button type="submit" href={nextHref}>
       {#if nextHref?.endsWith('/review')}
-        Review {uiRegistry.getWord('appRequest')}
+        {cfg?.reviewButtonText ?? `Review ${uiRegistry.getWord('appRequest')}`}
       {:else}
-        Continue
+        {cfg?.continueButtonText ?? 'Continue'}
       {/if}
     </Button>
   </div>

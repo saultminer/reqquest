@@ -21,6 +21,9 @@
   export let data: PageData
   $: ({ appRequestForExport, prequalPrompts, postqualPrompts, applicationsForNav } = data)
 
+  const cfg = uiRegistry.config.applicantReview
+  const maxWidth = cfg?.maxWidth ?? uiRegistry.config.applicantReviewMaxWidth ?? true
+
   const nextHref = getContext<Writable<{ nextHref?: ResolvedPathname, prevHref?: ResolvedPathname }>>('nextHref')
   $: previousHref = nextHref ? $nextHref.prevHref : undefined
 
@@ -38,10 +41,10 @@
     const resp = await api.appRequestPhaseChange(appRequestForExport.id, 'submitAppRequest')
     loading = false
     if (resp.success) {
-      toasts.add({ type: 'success', title: 'Submission Succeeded', message: 'Successfully submitted application for review' })
+      toasts.add({ type: 'success', title: cfg?.submitSuccessTitle ?? 'Submission Succeeded', message: cfg?.submitSuccessMessage ?? 'Successfully submitted application for review' })
       await goto(resolve('/dashboards/applicant'))
     } else {
-      toasts.add({ type: 'error', title: 'Submission Failed', message: resp.messages.map(m => m.message).join('\n') || 'There was an error submitting your application. Please try again later.' })
+      toasts.add({ type: 'error', title: cfg?.submitFailureTitle ?? 'Submission Failed', message: resp.messages.map(m => m.message).join('\n') || (cfg?.submitFailureMessage ?? 'There was an error submitting your application. Please try again later.') })
     }
   }
 
@@ -57,7 +60,7 @@
 {#if loading}
   <Loading />
 {/if}
-<div class:max-w-screen-md={uiRegistry.config.applicantReviewMaxWidth !== false} class:mx-auto={uiRegistry.config.applicantReviewMaxWidth !== false}>
+<div class:max-w-screen-md={maxWidth} class:mx-auto={maxWidth}>
   <ApplicationDetailsView
     appRequest={appRequestForExport}
     applications={applicationsForNav}
@@ -65,8 +68,11 @@
     {prequalPrompts}
     {postqualPrompts}
     {uiRegistry}
-    title={uiRegistry.config.applicantReview?.title ?? "Review your application"}
-    subtitle={uiRegistry.config.applicantReview?.subTitle ?? "Confirm the benefits shown are the ones you are requesting and that your responses are correct, or make changes before submitting."}
+    title={cfg?.title ?? "Review your application"}
+    subtitle={cfg?.subTitle ?? "Confirm the benefits shown are the ones you are requesting and that your responses are correct, or make changes before submitting."}
+    ineligibleTitle={cfg?.ineligibleTitle}
+    ineligibleHelpText={cfg?.ineligibleHelpText}
+    noProgramsMessage={cfg?.noProgramsMessage}
     expandable={false}
     showWarningsInline={true}
     showAppRequestStatus={false}
@@ -75,17 +81,17 @@
     <svelte:fragment slot="footer">
       <footer class="[ mt-6 ] flow">
         {#if uiRegistry.config.supportUrl}
-          <p class="text-center">If you think this was a mistake please review your answers or reach out through the support page.</p>
+          <p class="text-center">{cfg?.supportText ?? 'If you think this was a mistake please review your answers or reach out through the support page.'}</p>
         {/if}
         <div class="footer-actions">
           {#if previousHref}
-              <Button kind="ghost" on:click={handleBack}>Back</Button>
+              <Button kind="ghost" on:click={handleBack}>{cfg?.backButtonText ?? 'Back'}</Button>
           {/if}
           {#if uiRegistry.config.supportUrl}
-              <Button kind="ghost" href={uiRegistry.config.supportUrl}>Support</Button>
+              <Button kind="ghost" href={uiRegistry.config.supportUrl}>{cfg?.supportButtonText ?? 'Support'}</Button>
           {/if}
           {#if appRequestForExport.status === enumAppRequestStatus.READY_TO_SUBMIT}
-            <Button icon={Touch_1} on:click={onSubmit}>Submit application</Button>
+            <Button icon={Touch_1} on:click={onSubmit}>{cfg?.submitButtonText ?? 'Submit application'}</Button>
           {/if}
         </div>
       </footer>

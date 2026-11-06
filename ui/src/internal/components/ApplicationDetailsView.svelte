@@ -5,7 +5,7 @@
   import { Button, InlineNotification, Tooltip } from 'carbon-components-svelte'
   import Edit from 'carbon-icons-svelte/lib/Edit.svelte'
   import type { AnsweredPrompt, PromptSection, AppRequestForDetails, ApplicationForDetails, Scalars } from '@reqquest/ui'
-  import { enumRequirementType } from '@reqquest/ui'
+  import { enumApplicationStatus, enumRequirementType } from '@reqquest/ui'
   import type { UIRegistry } from '@reqquest/ui'
   import RenderDisplayComponent from './RenderDisplayComponent.svelte'
   import ApplicantProgramList from './ApplicantProgramList.svelte'
@@ -29,6 +29,11 @@
   export let showTooltipsAsText = false
   /** Apply print-export styles: hide app chrome and paginate by prompt row rather than by panel. */
   export let printMode = false
+  /** Title of the panel listing applications the applicant is ineligible for. */
+  export let ineligibleTitle = 'Ineligible benefits'
+  /** Shown below the program list when a listed application is ineligible. Nothing shown when unset. */
+  export let ineligibleHelpText: string | undefined = undefined
+  export let noProgramsMessage: string | undefined = undefined
 
   const CORRECTABLE_STATUSES = ['STARTED', 'READY_TO_SUBMIT', 'DISQUALIFIED']
 
@@ -115,14 +120,17 @@
         {#if eligibleApplications.length > 0}
           <ApplicantProgramList applications={eligibleApplications} {appRequest} viewMode={statusDisplay === 'tags'} {showTooltipsAsText} />
         {/if}
+        {#if ineligibleHelpText && eligibleApplications.some(a => a.status === enumApplicationStatus.INELIGIBLE)}
+          <p class="program-helptext">{ineligibleHelpText}</p>
+        {/if}
         <!-- Ineligible Status List -->
          {#if ineligibleApplications.length > 0}
-            <Panel title="Ineligible benefits" expandable={true} expanded={(eligibleApplications.length === 0)}>
+            <Panel title={ineligibleTitle} expandable={true} expanded={(eligibleApplications.length === 0)}>
               <ApplicantProgramList applications={ineligibleApplications} {appRequest} viewMode={statusDisplay === 'tags'} {showTooltipsAsText} />
             </Panel>
          {/if}
         {#if noProgramsToList}
-          <p class="text-center">{uiRegistry.config.applicantNoProgramsMessage ?? DEFAULT_APPLICANT_NO_PROGRAMS_MESSAGE}</p>
+          <p class="text-center">{noProgramsMessage ?? uiRegistry.config.applicantNoProgramsMessage ?? DEFAULT_APPLICANT_NO_PROGRAMS_MESSAGE}</p>
         {/if}
       </div>
     </section>
@@ -239,6 +247,11 @@
 {/if}
 
 <style>
+  .program-helptext {
+    text-align: center;
+    font-size: 0.9rem;
+  }
+
   .app-view-subtitle {
     color: var(--cds-text-02);
     font-size: 0.9rem;

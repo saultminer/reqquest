@@ -54,6 +54,73 @@ export interface ProgramDefinition<RK extends string = RequirementKey> {
   reviewSections?: ReviewSection<RK>[]
 }
 
+/**
+ * Options both applicant pre-submit screens ("Your potential benefits" and "Review your
+ * application") accept. Each screen has its own values; every field falls back to that screen's
+ * built-in text.
+ */
+export interface ApplicantScreenConfig {
+  title?: string
+  subTitle?: string
+  /**
+   * Whether to constrain the screen to a medium screen-width container. Defaults to true.
+   */
+  maxWidth?: boolean
+  /**
+   * Shown when there is no program left to list. Falls back to `UIConfig.applicantNoProgramsMessage`,
+   * then to a generic "you don't currently qualify" message.
+   */
+  noProgramsMessage?: string
+  /**
+   * Title of the panel listing programs the applicant is ineligible for. Defaults to "Ineligible benefits".
+   */
+  ineligibleTitle?: string
+  /**
+   * Shown below the program list when a listed application is ineligible. On the potential benefits
+   * screen this defaults to a "read the tooltips and review your answers" hint; the review screen
+   * shows nothing unless set.
+   */
+  ineligibleHelpText?: string
+  /**
+   * Line shown above the buttons when `UIConfig.supportUrl` is set.
+   */
+  supportText?: string
+  /**
+   * Text of the button linking to `UIConfig.supportUrl`. Defaults to "Support".
+   */
+  supportButtonText?: string
+  /**
+   * Defaults to "Back".
+   */
+  backButtonText?: string
+}
+
+export interface ApplicantProgramsConfig extends ApplicantScreenConfig {
+  /**
+   * Next-button text when the next step is not the review screen. Defaults to "Continue".
+   */
+  continueButtonText?: string
+  /**
+   * Next-button text when the next step is the review screen. Defaults to "Review {appRequest}",
+   * using the `appRequest` terminology.
+   */
+  reviewButtonText?: string
+}
+
+export interface ApplicantReviewConfig extends ApplicantScreenConfig {
+  /**
+   * Defaults to "Submit application".
+   */
+  submitButtonText?: string
+  submitSuccessTitle?: string
+  submitSuccessMessage?: string
+  submitFailureTitle?: string
+  /**
+   * Shown when submission fails and the API returned no message of its own.
+   */
+  submitFailureMessage?: string
+}
+
 export interface RequirementDefinition {
   /**
    * The key of the requirement this decorates. Autocompletes and rejects unknown keys once the
@@ -340,25 +407,33 @@ export interface UIConfig<PK extends string = PromptKey, RK extends string = Req
   reviewerDialogButtonText?: string
 
   /**
-   * Applicant Review submission page title and subtitle text.
+   * Text and layout of the applicant's "Your potential benefits" screen. Any field left out keeps
+   * the built-in text.
    */
-  applicantReview?: {
-    title?: string
-    subTitle?: string
-  }
+  applicantPrograms?: ApplicantProgramsConfig
+  /**
+   * Text and layout of the applicant's "Review your application" submission screen. Any field left
+   * out keeps the built-in text.
+   */
+  applicantReview?: ApplicantReviewConfig
   /**
    * Shown to the applicant on the program review and submission review screens when there is no program
    * left to list: none they are eligible for, and every ineligible one belongs to a program that sets
    * `showIneligiblePreSubmit: false`. Defaults to a generic "you don't currently qualify" message.
+   *
+   * `applicantPrograms.noProgramsMessage` and `applicantReview.noProgramsMessage` override this per screen.
    */
   applicantNoProgramsMessage?: string
   /**
    * Whether to constrain the applicant review/submission page to a medium
    * screen-width container. Defaults to true.
+   *
+   * @deprecated Use `applicantReview.maxWidth`, which wins when both are set.
    */
   applicantReviewMaxWidth?: boolean
   /**
-   * URL to the support/help page. If provided, a support link will be shown on applicant review screen.
+   * URL to the support/help page. If provided, a support link will be shown on the applicant's
+   * potential benefits and review screens.
    */
   supportUrl?: string
   extraNavItems?: LayoutStructureNodeRoot<LayoutStructureNode>[]

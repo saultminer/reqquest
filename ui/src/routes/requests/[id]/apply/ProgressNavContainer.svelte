@@ -1,9 +1,10 @@
 <script lang="ts">
   export let title: string | undefined = undefined
   export let subtitle: string | undefined = undefined
+  export let maxWidth = true
 </script>
 <div class="progress-nav-outer">
-  <div class="progress-nav-inner">
+  <div class="progress-nav-inner" class:full-width={!maxWidth}>
     {#if title}<h2>{title}</h2>{/if}
     {#if subtitle}<div class="progress-nav-subtitle">{subtitle}</div>{/if}
     <slot />
@@ -18,6 +19,9 @@
   .progress-nav-inner {
     width: min(90%, 800px);
     margin: 0 auto;
+  }
+  .progress-nav-inner.full-width {
+    width: 90%;
   }
   @media (max-width: 600px) {
     .progress-nav-inner {

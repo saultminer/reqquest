@@ -244,9 +244,15 @@ test.describe.serial('Reviewer screen shows a PENDING reason as a prompt tooltip
     // ...but the applicant prompt the same requirement also consults does not, because blame names one prompt
     await expect(customPanel.locator('dt', { hasText: 'Do you have other cats?' }).locator('.indicator-tooltip')).toHaveCount(0)
 
-    // and a PENDING requirement that gives no reason shows nothing at all
+    // and a PENDING reviewer requirement that gives no reason marks its unanswered reviewer prompt "Required"
     const reviewerPanel = reviewerPage.locator('.panel').filter({ has: reviewerPage.locator('.panel-header', { hasText: 'Reviewer Questions' }) })
-    await expect(reviewerPanel.locator('dt', { hasText: 'Assess Applicant\'s Niceness' })).toBeVisible()
-    await expect(reviewerPanel.locator('dt', { hasText: 'Assess Applicant\'s Niceness' }).locator('.indicator-tooltip')).toHaveCount(0)
+    const niceness = reviewerPanel.locator('dt', { hasText: 'Assess Applicant\'s Niceness' })
+    await expect(niceness).toBeVisible()
+    const nicenessIndicator = niceness.locator('.indicator-tooltip')
+    await expect(nicenessIndicator).toBeVisible()
+    await expect(nicenessIndicator.locator('svg')).toHaveCount(1)
+    await nicenessIndicator.locator('.bx--tooltip__trigger').hover()
+    // the Vaccine Review tooltip above stays open, so scope to this prompt's own indicator
+    await expect(nicenessIndicator.locator('.bx--tooltip--shown')).toContainText('Required')
   })
 })

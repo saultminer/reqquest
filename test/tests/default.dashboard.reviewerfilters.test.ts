@@ -222,7 +222,7 @@ test.describe.serial('Reviewer dashboard tabs and list', { tag: '@default' }, ()
     await expect(reviewerPage.locator('.column-list-row').first()).toBeVisible()
     await expect(closedTag).toHaveCount(0)
 
-    await reviewerPage.getByRole('button', { name: /^Filter / }).click()
+    await reviewerPage.getByRole('button', { name: /^(Filter |\d+\s*active filters?, edit filters for )/ }).click()
     const dialog = reviewerPage.locator('dialog[open]')
     for (const label of [/^Program status$/, /^Program$/, /^Periods$/]) await expect(dialog.locator('.bx--label', { hasText: label })).toHaveCount(1)
     // Period trails Program directly; every other filter follows

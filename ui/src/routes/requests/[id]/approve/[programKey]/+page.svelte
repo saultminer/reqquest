@@ -8,7 +8,7 @@
   import TrashCan from 'carbon-icons-svelte/lib/TrashCan.svelte'
   import View from 'carbon-icons-svelte/lib/View.svelte'
   import { invalidateAll } from '$app/navigation'
-  import { api, getApplicationStatusInfo, hasDisplayablePrompts } from '$internal'
+  import { api, getApplicationStatusInfo, hasDisplayablePrompts, reviewerRequirementTypes } from '$internal'
   import { CommentCard, enumPromptVisibility, enumRequirementStatus, enumRequirementType, InfoCard, PromptIndicators, type StatusReason } from '@reqquest/ui'
   import type { PageData } from './$types'
   import { uiRegistry } from '$local'
@@ -130,6 +130,7 @@
       : undefined)
     const claimedKeys = new Set<string>(custom.flatMap(c => c?.requirementKeys ?? []))
     const claimed = new Map<string, ApplicationRequirement>()
+    const answeredKeys = new Set(application.requirements.flatMap(r => r.prompts.filter(p => p.answered).map(p => p.key)))
     for (const req of application.requirements) {
       // automation indicator is about the prompt itself not requirement's status, so only applies to the requirements own prompts
       for (const prompt of req.prompts) {
@@ -147,8 +148,9 @@
           promptIndicator[key] = { indicator: PromptIndicators.DISQUALIFYING, reason: req.statusReason ?? undefined }
         } else if (req.status === enumRequirementStatus.WARNING && (promptIndicator[key]?.indicator ?? 0) < PromptIndicators.WARNING) {
           promptIndicator[key] = { indicator: PromptIndicators.WARNING, reason: req.statusReason ?? undefined }
-        } else if (req.status === enumRequirementStatus.PENDING && req.statusReason && (promptIndicator[key]?.indicator ?? 0) < PromptIndicators.PENDING) {
-          promptIndicator[key] = { indicator: PromptIndicators.PENDING, reason: req.statusReason }
+        } else if (req.status === enumRequirementStatus.PENDING && reviewerRequirementTypes.has(req.type) && !answeredKeys.has(key) &&
+          !uiRegistry.getPrompt(key)?.automation && (promptIndicator[key]?.indicator ?? 0) < PromptIndicators.PENDING) {
+          promptIndicator[key] = { indicator: PromptIndicators.PENDING, reason: req.statusReason ?? 'Required' }
         }
       }
       if (req.workflowStage) {

@@ -262,7 +262,7 @@
               {/if}
             {/snippet}
             <dt class:small class:large class:isReviewerQuestion class:disabled={disabled} class:bg-tagyellow-200={isAutomation}>
-            {#if promptIndicator[prompt.key]?.indicator && (promptIndicator[prompt.key].indicator !== PromptIndicators.PENDING || editMode)}
+            {#if promptIndicator[prompt.key]?.indicator && (promptIndicator[prompt.key].indicator !== PromptIndicators.PENDING || (isReviewerQuestion && prompt.actions.update))}
                 <div class="indicator-tooltip">
                 <Tooltip align="start" direction="bottom">
                     <svelte:fragment slot="icon">

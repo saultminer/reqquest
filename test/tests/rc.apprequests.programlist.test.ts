@@ -83,7 +83,7 @@ test.describe.serial('Applicant program list - hidden, opted-out and auto-comple
     await expect(applicantPage.getByRole('button', { name: 'Opt out', exact: true })).toHaveCount(0)
     await applicantPage.goto(`/requests/${lowGpaId}/export`)
     await expect(applicantPage.getByText(opsDescription).first()).toBeAttached()
-    await expect(applicantPage.getByText(/^Exported \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}(AM|PM)$/)).toBeVisible()
+    await expect(applicantPage.getByText(/^\s*Exported \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}(AM|PM)$/)).toBeVisible()
     await expect(applicantPage.getByRole('button', { name: 'Print', exact: true })).toBeVisible()
   })
 

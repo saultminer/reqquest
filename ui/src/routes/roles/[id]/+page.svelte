@@ -234,7 +234,7 @@
       <svelte:fragment slot="labelText" let:item>
         {@const control = controlGroup.controls.find(c => c.name === item.value)}
         {#if control}
-          <TooltipDefinition tooltipText={control.description} direction="bottom" align="start">
+          <TooltipDefinition tooltipText={control.description} direction="bottom" align="start" portalTooltip>
             {control.name}
           </TooltipDefinition>
         {:else}
@@ -273,7 +273,7 @@
         <svelte:fragment slot="labelText" let:item>
           {@const control = controlGroup.controls.find(c => c.name === item.value)}
           {#if control}
-            <TooltipDefinition tooltipText={control.description} direction="bottom" align="start">
+            <TooltipDefinition tooltipText={control.description} direction="bottom" align="start" portalTooltip>
               {control.name}
             </TooltipDefinition>
           {:else}

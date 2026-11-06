@@ -72,7 +72,7 @@
   <FieldRadio
     path='type'
     required
-    disabled={!canManage}
+    readonly={!canManage}
     labelText="Display duration"
     defaultValue='toggle'
     class="md:w-[645px]"
@@ -81,7 +81,7 @@
       { label: 'Date range', value: 'date' }
     ]} />
     {#if data.type === 'toggle'}
-      <FieldToggle path='enabled' disabled={!canManage} hideLabel labelText='Enable/Disable' labelA='Message inactive' labelB='Message active' />
+      <FieldToggle path='enabled' readonly={!canManage} hideLabel labelText='Enable/Disable' labelA='Message inactive' labelB='Message active' />
     {:else}
       <div class="md:w-[645px] flow datetime-full">
         <FieldDateTime path='start' disabled={!canManage} labelText='Start date' helperText='Leave blank to start displaying as soon as it is saved.' defaultTime='24:00'/>
@@ -153,6 +153,11 @@
   .datetime-full :global(.bx--time-picker__input),
   .datetime-full :global(.bx--time-picker__input-field) {
     width: 100%;
+  }
+
+  /* FieldRadio paints the checked dot maroon globally; Carbon's read-only dot uses the primary text color. */
+  :global(.bx--radio-button-group--readonly .bx--radio-button:checked + .bx--radio-button__label .bx--radio-button__appearance::before) {
+    background-color: var(--cds-text-01);
   }
 
   :global(.bx--text-area.textarea) {

@@ -259,12 +259,14 @@ export class RequirementPromptService extends AuthService<RequirementPrompt> {
     }
     const hasUpdate = this.hasControl('PromptAnswer', 'update', { ...prompt.authorizationKeys, ...prompt.appRequestTags })
     const hasUpdateAnytime = this.hasControl('PromptAnswer', 'update_anytime', { ...prompt.authorizationKeys, ...prompt.appRequestTags })
-    // non-blocking workflow stages stay editable once their emergence phase is reached for the remainder of the request lifecycle
+    // non-blocking workflow stages are editable from their emergence phase until their sunset phase, or for the remainder of the request lifecycle when they have no sunset
     if (prompt.requirementType === RequirementType.WORKFLOW) {
       const stage = programRegistry.getWorkflowStageByKey(prompt.workflowStage)
-      const emergence = stage?.nonBlockingEmergence ?? AppRequestPhase.WORKFLOW_NONBLOCKING
-      if (stage?.nonBlocking && appRequestPhaseReached(prompt.appRequestDbPhase, emergence)) {
-        return hasUpdate || hasUpdateAnytime
+      if (stage?.nonBlocking) {
+        // decided here rather than falling through, so the per-phase branches below cannot re-open a stage that has sunset
+        if (stage.nonBlockingSunset != null && appRequestPhaseReached(prompt.appRequestDbPhase, stage.nonBlockingSunset)) return false
+        const emergence = stage.nonBlockingEmergence ?? AppRequestPhase.WORKFLOW_NONBLOCKING
+        if (appRequestPhaseReached(prompt.appRequestDbPhase, emergence)) return hasUpdate || hasUpdateAnytime
       }
     }
     if (prompt.appRequestDbPhase === AppRequestPhase.SUBMITTED) {

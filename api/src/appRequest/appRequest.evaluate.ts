@@ -763,7 +763,8 @@ function requirementsToLock (phase: EvaluationPhase, application: Application, b
     const activeStageIndex = findIndex(buckets.blockingWorkflow, r => r.workflowStageKey === application.workflowStageKey) ?? buckets.blockingWorkflow.length
     return [...buckets.review, ...buckets.blockingWorkflow.slice(0, activeStageIndex)]
   }
-  // never lock non-blocking workflow requirements, once emerged they stay editable for the remainder of the lifecycle.
+  // never lock non-blocking workflow requirements here: once emerged they stay editable until their stage's nonBlockingSunset, which
+  // RequirementPromptService.mayUpdate enforces per stage. A lock is per prompt key across the whole request, too broad for that.
   if (phase === 'nonblocking') return [...buckets.review, ...buckets.blockingWorkflow, ...buckets.acceptance]
   if (phase === 'acceptance') return [...buckets.review, ...buckets.blockingWorkflow]
   return []

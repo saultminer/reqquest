@@ -60,6 +60,7 @@ const software_development: ProgramDefinition = {
       key: 'software_development_non_blocking_show_submitted2',
       nonBlocking: true,
       nonBlockingEmergence: AppRequestPhase.SUBMITTED,
+      nonBlockingSunset: AppRequestPhase.ACCEPTANCE,
       title: 'Audit the actively ongoing review for a second time',
       requirementKeys: ['audit_software_development_non_blocking_show_submitted_req2']
     },

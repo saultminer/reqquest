@@ -6,7 +6,7 @@ import { promptMapApplicantQualified, promptMapApproveReviewerQualified } from '
  * submit, and walk it through blocking workflow. Shared by the complex app-request specs.
  */
 export type Graphql = <T = any>(query: string, variables?: Record<string, any>) => Promise<T>
-export type Prompt = { id: number, key: string, answered: boolean, visibility: string }
+export type Prompt = { id: number, key: string, answered: boolean, visibility: string, actions: { update: boolean } }
 export type Requirement = { key: string, type: string, status: string, prompts: Prompt[] }
 export type Actions = { rescindApplication: boolean, restoreApplication: boolean }
 export type Application = { id: string, programKey: string, phase: string, status: string, ineligiblePhase: string | null, workflowStage: { key: string } | null, rescindedStatus: string | null, rescindedReason: string | null, restoredReason: string | null, actions: Actions, requirements: Requirement[] }
@@ -19,7 +19,7 @@ export const stateQuery = `
       applications {
         id programKey phase status ineligiblePhase workflowStage { key } rescindedStatus rescindedReason restoredReason
         actions { rescindApplication restoreApplication }
-        requirements { key type status prompts { id key answered visibility } }
+        requirements { key type status prompts { id key answered visibility actions { update } } }
       }
     }
   }

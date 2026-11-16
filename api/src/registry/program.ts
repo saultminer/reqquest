@@ -1,4 +1,4 @@
-import { AppRequest, AppRequestPhase, assertNoKeyCollisions, assertNoProgramTitleCollisions, requirementRegistry } from '../internal.js'
+import { AppRequest, AppRequestPhase, appRequestPhaseOrder, assertNoKeyCollisions, assertNoProgramTitleCollisions, requirementRegistry } from '../internal.js'
 import type { RequirementKey } from './keys.js'
 
 export interface ProgramDefinition {
@@ -144,11 +144,29 @@ export interface WorkflowStage {
   /**
    * For workflows that are set nonBlocking: true, this property identifies in what AppRequestPhase
    * these workflow requirements first become visible/editable.  Once visible these workflows remain visible
-   * for the remainder of the AppRequest lifecycle. Defaults to WORKFLOW_NONBLOCKING,
+   * for the remainder of the AppRequest lifecycle, and editable until `nonBlockingSunset` (if any) is
+   * reached. Defaults to WORKFLOW_NONBLOCKING,
    * which preserves the legacy behavior of only surfacing non-blocking workflow requirements once the
    * request reaches the WORKFLOW_NONBLOCKING phase.
    */
   nonBlockingEmergence?: AppRequestPhase.STARTED | AppRequestPhase.SUBMITTED | AppRequestPhase.ACCEPTANCE | AppRequestPhase.WORKFLOW_NONBLOCKING
+  /**
+   * For workflows that are set nonBlocking: true, this property identifies the AppRequestPhase at
+   * which this stage's prompts stop being editable. It is the opposite of `nonBlockingEmergence`:
+   * once the request reaches this phase, nobody can edit the stage's prompts any more - not even
+   * with `update_anytime` - though the stage and its answers stay visible. Leave it unset and the
+   * stage stays editable for the remainder of the AppRequest lifecycle.
+   *
+   * It must come after the emergence phase, or the stage would never be editable; that is checked
+   * at startup. A stage with no `nonBlockingEmergence` emerges at WORKFLOW_NONBLOCKING, so the only
+   * sunset it can have is COMPLETE.
+   *
+   * The sunset only stops edits. It does not change evaluation: a requirement still PENDING when
+   * its stage sunsets keeps holding the request back from COMPLETE, exactly as described under
+   * `nonBlocking`. Moving the request back to a phase before the sunset (for example returning from
+   * COMPLETE to non-blocking workflow) makes the stage editable again.
+   */
+  nonBlockingSunset?: AppRequestPhase.SUBMITTED | AppRequestPhase.ACCEPTANCE | AppRequestPhase.WORKFLOW_NONBLOCKING | AppRequestPhase.COMPLETE
   /**
    * The title of the stage, displayed to the user.
    */
@@ -157,6 +175,26 @@ export interface WorkflowStage {
    * The list of requirement keys that must be met to complete this stage.
    */
   requirementKeys: RequirementKey[]
+}
+
+/**
+ * Refuse to start with a stage whose emergence/sunset settings could never do what they say. The
+ * union types on the interface already limit each setting to phases that make sense on their own;
+ * this checks them against each other and against `nonBlocking`.
+ */
+function assertValidNonBlockingWindow (programKey: string, stage: WorkflowStage) {
+  const where = `Workflow stage '${stage.key}' in program '${programKey}'`
+  if (!stage.nonBlocking) {
+    if (stage.nonBlockingEmergence != null) throw new Error(`${where} sets nonBlockingEmergence but is not nonBlocking: true. Emergence only applies to non-blocking stages.`)
+    if (stage.nonBlockingSunset != null) throw new Error(`${where} sets nonBlockingSunset but is not nonBlocking: true. Sunset only applies to non-blocking stages.`)
+    return
+  }
+  if (stage.nonBlockingSunset == null) return
+  const emergence = stage.nonBlockingEmergence ?? AppRequestPhase.WORKFLOW_NONBLOCKING
+  if (appRequestPhaseOrder.indexOf(stage.nonBlockingSunset) <= appRequestPhaseOrder.indexOf(emergence)) {
+    const emergenceDescription = stage.nonBlockingEmergence == null ? `${emergence} (the default, since nonBlockingEmergence is not set)` : emergence
+    throw new Error(`${where} has nonBlockingSunset ${stage.nonBlockingSunset}, which is not after its emergence phase ${emergenceDescription}. The stage would never be editable. Phases in order: ${appRequestPhaseOrder.join(', ')}.`)
+  }
 }
 
 /**
@@ -221,6 +259,7 @@ export class ProgramRegistry {
       program.navTitle ??= program.title
       program.showIneligiblePreSubmit ??= true
       for (const stage of program.workflowStages ?? []) {
+        assertValidNonBlockingWindow(program.key, stage)
         this.workflowStagesByKey[stage.key] = stage
         for (const requirementKey of stage.requirementKeys) {
           this.workflowStageByProgramAndRequirementKey[program.key] ??= {}

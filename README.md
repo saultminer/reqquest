@@ -341,6 +341,22 @@ rather than leaving it PENDING, or the request will never complete.
   The READY_FOR_WORKFLOW status will re-appear at the end of each non-blocking workflow stage, when the application
   is ready to move to the next one. When the last non-blocking workflow stage is complete, the application will
   move to the COMPLETE phase.
+
+  A non-blocking stage does not have to wait for this phase, and does not have to stay open forever. Two optional
+  settings on the stage (`WorkflowStage` in `programs`) give it an editing window, each naming an *AppRequest* phase
+  (STARTED, SUBMITTED, ACCEPTANCE, WORKFLOW_NONBLOCKING, COMPLETE, in that order):
+
+  * `nonBlockingEmergence` - the phase at which the stage's requirements first become visible and editable to
+    reviewers. Defaults to WORKFLOW_NONBLOCKING. Set it to SUBMITTED, for example, to audit a review while it is
+    still in progress.
+  * `nonBlockingSunset` - the phase at which the stage's prompts stop being editable. From that phase on the stage
+    is still shown, read-only, and nobody can change its answers. Leave it unset and the stage stays editable for
+    the rest of the lifecycle, COMPLETE included. It must be later than the emergence phase, which is checked at
+    startup; a stage with no `nonBlockingEmergence` can therefore only sunset at COMPLETE.
+
+  The sunset only stops edits. A requirement that is still PENDING when its stage sunsets keeps holding the request
+  back from COMPLETE, so either have it answered before then, have its logic return NOT_APPLICABLE, or move the
+  request back to a phase before the sunset, which makes the stage editable again.
 * COMPLETE
 
   There is nothing left to do on this application. Other applications may still be working through their own

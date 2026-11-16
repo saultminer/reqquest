@@ -915,6 +915,12 @@ export default {
             "advanceWorkflow": [
                 47
             ],
+            "completeApplication": [
+                47
+            ],
+            "reopenApplication": [
+                47
+            ],
             "rescindApplication": [
                 47
             ],
@@ -1346,6 +1352,15 @@ export default {
                     ]
                 }
             ],
+            "completeApplication": [
+                93,
+                {
+                    "applicationId": [
+                        55,
+                        "ID!"
+                    ]
+                }
+            ],
             "completeRequest": [
                 93,
                 {
@@ -1450,6 +1465,15 @@ export default {
                 93,
                 {
                     "appRequestId": [
+                        55,
+                        "ID!"
+                    ]
+                }
+            ],
+            "reopenApplication": [
+                93,
+                {
+                    "applicationId": [
                         55,
                         "ID!"
                     ]

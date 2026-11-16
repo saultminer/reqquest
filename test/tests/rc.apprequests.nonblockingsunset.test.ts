@@ -1,30 +1,40 @@
-import { DateTime } from 'luxon'
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.js'
 import { answerAvailable, application, applicationAction, expectAction, expectRefused, getState, requestAction, requirement, updatePromptMutation, type Graphql, type State } from './complex.flow.js'
 
 /**
- * A non-blocking workflow stage is editable from its `nonBlockingEmergence` phase until its `nonBlockingSunset` phase.
- * Software Development has two audit stages that both emerge at SUBMITTED. Only the second one sunsets (at ACCEPTANCE),
- * so the first is the control: same program, same emergence, no sunset.
+ * A non-blocking workflow stage is editable from its `nonBlockingEmergence` phase until its `nonBlockingSunset` phase
+ * or until a reviewer marks its program complete, whichever comes first.
  *
- * This demo has no acceptance phase, so completing the review carries the request straight past ACCEPTANCE. Whether it
- * lands in WORKFLOW_NONBLOCKING or COMPLETE depends on the API's period cache (see `seededPeriodId` in complex.flow.ts),
- * and the sunset has been reached either way, so the spec does not depend on which.
+ * Two programs are applied for:
+ * - software_development has audit stages that emerge at SUBMITTED - one sunsets at ACCEPTANCE, the other (the control)
+ *   never does - plus two that emerge at WORKFLOW_NONBLOCKING. With stages still open in non-blocking workflow it must
+ *   be marked complete by a reviewer, and can be reopened.
+ * - operations_infrastructure's only non-blocking stage (the GPA override) sunsets when non-blocking workflow begins.
+ *   Nothing is left for a reviewer to change, so it completes on its own and offers neither action.
+ *
+ * This demo has no acceptance phase, so completing the review carries the request straight past ACCEPTANCE into
+ * WORKFLOW_NONBLOCKING. That needs the seeded 'Period 2' (see demos/src/rc/testdata.ts): a period created by a spec
+ * is not yet known to carry non-blocking workflow and would skip to COMPLETE.
  */
 const swdev = 'software_development'
+const ops = 'operations_infrastructure'
 const sunsetRequirement = 'audit_software_development_non_blocking_show_submitted_req2'
 const sunsetPrompt = 'audit_software_development_non_blocking_show_submitted_prompt2'
 const controlRequirement = 'audit_software_development_non_blocking_show_submitted_req'
 const controlPrompt = 'audit_software_development_non_blocking_show_submitted_prompt'
 
 const optOut = { optOut: true, optInUnderstand: false, optOutUnderstand: true }
-const optOutPromptKeys = ['operations_infrastructure_opt_out_prompt', 'project_management_opt_out_prompt', 'application_management_opt_out_prompt', 'help_desk_opt_out_prompt']
+const optOutPromptKeys = ['project_management_opt_out_prompt', 'application_management_opt_out_prompt', 'help_desk_opt_out_prompt']
 const applicantAnswers = new Map<string, Map<string, any>>([
   ['pre_qual_prompt', new Map([['pass', { gpa: 3.5, availability: true, acknowledgeExpectations: true }]])],
   ['pre_qual_user_info_prompt', new Map([['pass', { correct: true }]])],
   ['data_related_puzzle_prompt', new Map([['pass', { puzzleAnswer: 'Join the two tables on the shared key.' }]])],
   ['outside_class_example_prompt', new Map([['pass', { outsideClassExample: true, description: 'Built a scheduling app for a student club.' }]])],
   ['critical_thinking_prompt', new Map([['pass', { criticalThinkingAnswer: 'Profile first, then optimize the slowest query.' }]])],
+  ['help_desk_weekend_availability_prompt', new Map([['pass', { weekendAvailable: true }]])],
+  ['written_automation_prompt', new Map([['pass', { hasWrittenAutomation: true, writtenAutomation: 'A nightly backup script.' }]])],
+  ['investigated_future_career_prompt', new Map([['pass', { interestInCareer: 'Keeping systems running.' }]])],
   // no multipart parts are sent, so preProcessData stores the upload info as-is
   ['reccomendation_letter_prompt', new Map([['pass', { reccomendationLetter: { _type: 'UploadInfo', multipartIndex: 0, name: 'letter.pdf', mime: 'application/pdf', size: 1024 } }]])]
 ])
@@ -33,36 +43,47 @@ const reviewerAnswers = new Map<string, Map<string, any>>([
   ['assess_outside_class_example_prompt', new Map([['pass', { showCriticalThinking: true, explanation: 'Clear example.' }]])],
   ['assess_critical_thinking_prompt', new Map([['pass', { realIssue: true, feasable: true }]])],
   ['assess_reccomendation_letter_prompt', new Map([['pass', { score: 'Good' }]])],
-  ['verify_reccomendation_letter_prompt', new Map([['pass', { authentic: true, addressesTechnicalSkills: true, relationship: 'Professor' }]])]
+  ['verify_reccomendation_letter_prompt', new Map([['pass', { authentic: true, addressesTechnicalSkills: true, relationship: 'Professor' }]])],
+  ['evidence_automation_prompt', new Map([['pass', { appropriateAutomation: true, comments: 'Sensible choice.' }]])],
+  ['rate_future_career_prompt', new Map([['pass', { scoreInterestInCareer: 'Good' }]])]
+])
+const secondEyesAnswer = new Map([['reviewer_software_development_second_eyes_prompt', new Map([['pass', { score: 80 }]])]])
+const finalAuditAnswers = new Map<string, Map<string, any>>([
+  [controlPrompt, new Map([['pass', { ok: true }]])],
+  ['audit_software_development_non_blocking_show_regular_prompt', new Map([['pass', { ok: true }]])],
+  ['audit_software_development_non_blocking_show_regular_prompt2', new Map([['pass', { ok: true }]])]
 ])
 
-const timeZone = 'America/Chicago'
-const openDate = '2025-07-01T00:00:00.000-05:00'
-const closeDate = DateTime.now().plus({ days: 1 }).setZone(timeZone).set({ millisecond: 0 }).toISO()
-async function createPeriod (graphql: Graphql, name: string, code: string) {
-  const { createPeriod } = await graphql<{ createPeriod: { period: { id: string } } }>(`
-    mutation CreatePeriod($name: String!, $code: String!, $openDate: DateTime!, $closeDate: DateTime!) {
-      createPeriod(period: { name: $name, code: $code, openDate: $openDate, closeDate: $closeDate }, validateOnly: false) { period { id } }
-    }
-  `, { name, code, openDate, closeDate })
-  const periodId = String(createPeriod.period.id)
-  await graphql('mutation ($periodId: ID!) { markPeriodReviewed(periodId: $periodId) { period { id } } }', { periodId })
-  return periodId
+/**
+ * Advance every application a reviewer has to act on through blocking workflow, then complete the review. An
+ * application screened out before submission (here, the opted-out programs) also sits at READY_FOR_WORKFLOW, but the
+ * request does not wait for it: it reads REVIEW_COMPLETE as soon as the others are, and advancing is refused from then on.
+ */
+async function finishReview (graphql: Graphql, appRequestId: number) {
+  for (let i = 0; i < 8; i++) {
+    const state = await getState(graphql, appRequestId)
+    const next = state.applications.find(a => a.phase === 'READY_FOR_WORKFLOW' && !['PREQUAL', 'QUALIFICATION'].includes(a.ineligiblePhase ?? ''))
+    if (!next) break
+    await expectAction(graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: next.id })
+    await answerAvailable(graphql, appRequestId, secondEyesAnswer)
+  }
+  await expectAction(graphql, 'completeReview', requestAction('completeReview'), { appRequestId })
 }
 
 const auditPrompt = (state: State, requirementKey: string, promptKey: string) => requirement(state, swdev, requirementKey).prompts.find(p => p.key === promptKey)!
 /** Either way the reviewer screen offers an edit: the pencil/dialog button, or the prompt's form rendered inline. */
 const editControls = (promptId: number) => `#edit-btn-${promptId}, dd[role="group"][aria-labelledby="dt-title-${promptId}"]`
 
-test.describe.serial('A non-blocking workflow stage stops being editable at its sunset phase', { tag: '@rc' }, () => {
-  let periodId = ''
+const markComplete = (page: Page) => page.getByRole('button', { name: 'Mark program complete' })
+const reopen = (page: Page) => page.getByRole('button', { name: 'Reopen program' })
+
+test.describe.serial('Non-blocking workflow closes at its sunset phase or when its program is marked complete', { tag: '@rc' }, () => {
   let appRequestId = 0
 
-  test('Admin - open a period for this spec', async ({ adminRequest }) => {
-    periodId = await createPeriod(adminRequest.graphql, '2025 non-blocking sunset', 'NONBLOCKING_SUNSET')
-  })
-
-  test('Applicant - apply to software development only and submit', async ({ applicantRequest }) => {
+  test('Applicant - apply to software development and operations & infrastructure, and submit', async ({ adminRequest, applicantRequest }) => {
+    const { periods } = await adminRequest.graphql<{ periods: { id: string, code: string }[] }>('{ periods { id code } }')
+    const periodId = periods.find(p => p.code === 'Period 2')?.id
+    expect(periodId, 'the rc demo seeds period "Period 2" in testdata.ts').toBeTruthy()
     const { createAppRequest } = await applicantRequest.graphql<{ createAppRequest: { appRequest: { id: number } | null, messages: { message: string }[] } }>(`
       mutation ($login: String!, $periodId: ID!) {
         createAppRequest(login: $login, periodId: $periodId, validateOnly: false) { appRequest { id } messages { message } }
@@ -78,6 +99,7 @@ test.describe.serial('A non-blocking workflow stage stops being editable at its 
       expect(response.errors, key).toBeUndefined()
       expect(response.updatePrompt!.success, key).toEqual(true)
     }
+    await answerAvailable(applicantRequest.graphql, appRequestId, applicantAnswers)
     await expectAction(applicantRequest.graphql, 'submitAppRequest', requestAction('submitAppRequest'), { appRequestId })
   })
 
@@ -98,16 +120,11 @@ test.describe.serial('A non-blocking workflow stage stops being editable at its 
     // the control stage is deliberately left unanswered
     await answerAvailable(reviewerRequest.graphql, appRequestId, new Map([[sunsetPrompt, new Map([['pass', { ok: true }]])]]))
     await answerAvailable(reviewerRequest.graphql, appRequestId, reviewerAnswers)
-    let state = await getState(reviewerRequest.graphql, appRequestId)
+    const state = await getState(reviewerRequest.graphql, appRequestId)
     expect(requirement(state, swdev, sunsetRequirement).status).toEqual('MET')
-    expect(application(state, swdev).phase).toEqual('READY_FOR_WORKFLOW')
-
-    await expectAction(reviewerRequest.graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: application(state, swdev).id })
-    await answerAvailable(reviewerRequest.graphql, appRequestId, new Map([['reviewer_software_development_second_eyes_prompt', new Map([['pass', { score: 80 }]])]]))
-    state = await getState(reviewerRequest.graphql, appRequestId)
-    await expectAction(reviewerRequest.graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: application(state, swdev).id })
-    await expectAction(reviewerRequest.graphql, 'completeReview', requestAction('completeReview'), { appRequestId })
-    expect(['WORKFLOW_NONBLOCKING', 'COMPLETE']).toContain((await getState(reviewerRequest.graphql, appRequestId)).phase)
+    for (const key of [swdev, ops]) expect(application(state, key).phase, key).toEqual('READY_FOR_WORKFLOW')
+    await finishReview(reviewerRequest.graphql, appRequestId)
+    expect((await getState(reviewerRequest.graphql, appRequestId)).phase).toEqual('WORKFLOW_NONBLOCKING')
   })
 
   test('Reviewer - past the sunset the stage is still shown but read-only, while the stage without a sunset stays editable', async ({ reviewerPage, reviewerRequest }) => {
@@ -128,12 +145,90 @@ test.describe.serial('A non-blocking workflow stage stops being editable at its 
     await expect(reviewerPage.locator(editControls(sunset.id))).toHaveCount(0)
   })
 
+  test('Reviewer - a program whose non-blocking stages have all sunset completes on its own, with nothing to mark or reopen', async ({ reviewerPage, reviewerRequest }) => {
+    const state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(application(state, ops).phase).toEqual('COMPLETE')
+    expect(application(state, ops).actions.completeApplication).toEqual(false)
+    expect(application(state, ops).actions.reopenApplication).toEqual(false)
+    await expectRefused(reviewerRequest.graphql, 'reopenApplication', applicationAction('reopenApplication'), { applicationId: application(state, ops).id })
+    // software development still has open stages with unanswered audits
+    expect(application(state, swdev).phase).toEqual('WORKFLOW_NONBLOCKING')
+    expect(application(state, swdev).actions.completeApplication).toEqual(false)
+
+    await reviewerPage.goto(`/requests/${appRequestId}/approve/${ops}`)
+    await expect(reviewerPage.getByText('Reviewer Actions')).toBeVisible()
+    await expect(reviewerPage.getByText('Override GPA Warning').first()).toBeVisible()
+    await expect(markComplete(reviewerPage)).toHaveCount(0)
+    await expect(reopen(reviewerPage)).toHaveCount(0)
+  })
+
   test('Reviewer - returning the request to review, before the sunset phase, makes the stage editable again', async ({ reviewerRequest }) => {
     await expectAction(reviewerRequest.graphql, 'returnToReview', requestAction('returnToReview'), { appRequestId })
-    const state = await getState(reviewerRequest.graphql, appRequestId)
+    let state = await getState(reviewerRequest.graphql, appRequestId)
     expect(state.phase).toEqual('SUBMITTED')
     const sunset = auditPrompt(state, sunsetRequirement, sunsetPrompt)
     expect(sunset.actions.update, sunsetPrompt).toEqual(true)
     await expectAction(reviewerRequest.graphql, 'updatePrompt', updatePromptMutation, { promptId: sunset.id, data: { ok: false } })
+
+    await finishReview(reviewerRequest.graphql, appRequestId)
+    state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(state.phase).toEqual('WORKFLOW_NONBLOCKING')
+    expect(application(state, ops).phase).toEqual('COMPLETE')
+  })
+
+  test('Reviewer - once the open audits are answered the program can be marked complete, which locks them and leaves the request waiting', async ({ reviewerPage, reviewerRequest }) => {
+    await answerAvailable(reviewerRequest.graphql, appRequestId, finalAuditAnswers)
+    let state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(application(state, swdev).phase).toEqual('READY_TO_COMPLETE')
+    expect(application(state, swdev).actions.completeApplication).toEqual(true)
+    // ready is not marked: the answers are still editable and the request cannot complete yet
+    const control = auditPrompt(state, controlRequirement, controlPrompt)
+    expect(control.actions.update).toEqual(true)
+    expect(state.actions.completeRequest).toEqual(false)
+
+    await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
+    await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(1)
+    await expect(reopen(reviewerPage)).toHaveCount(0)
+    await expect(markComplete(reviewerPage)).toHaveCount(1)
+    await markComplete(reviewerPage).click()
+
+    await expect(reopen(reviewerPage)).toHaveCount(1)
+    await expect(markComplete(reviewerPage)).toHaveCount(0)
+    await expect(reviewerPage.locator(`#dt-title-${control.id}`)).toHaveCount(1)
+    await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(0)
+
+    state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(application(state, swdev).phase).toEqual('COMPLETE')
+    expect(auditPrompt(state, controlRequirement, controlPrompt).actions.update).toEqual(false)
+    await expectRefused(reviewerRequest.graphql, 'updatePrompt', updatePromptMutation, { promptId: control.id, data: { ok: false } })
+    // marking the last program complete does not complete the request, it only makes that possible
+    expect(state.phase).toEqual('WORKFLOW_NONBLOCKING')
+    expect(state.actions.completeRequest).toEqual(true)
+  })
+
+  test('Reviewer - reopening the program unlocks only the stages that have not sunset', async ({ reviewerPage, reviewerRequest }) => {
+    await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
+    await reopen(reviewerPage).click()
+    await expect(markComplete(reviewerPage)).toHaveCount(1)
+
+    const state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(application(state, swdev).phase).toEqual('READY_TO_COMPLETE')
+    const control = auditPrompt(state, controlRequirement, controlPrompt)
+    const sunset = auditPrompt(state, sunsetRequirement, sunsetPrompt)
+    expect(control.actions.update).toEqual(true)
+    expect(sunset.actions.update).toEqual(false)
+    expect(state.actions.completeRequest).toEqual(false)
+    await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(1)
+    await expect(reviewerPage.locator(editControls(sunset.id))).toHaveCount(0)
+  })
+
+  test('Reviewer - with every program complete the request completes and everything stays locked', async ({ reviewerRequest }) => {
+    let state = await getState(reviewerRequest.graphql, appRequestId)
+    await expectAction(reviewerRequest.graphql, 'completeApplication', applicationAction('completeApplication'), { applicationId: application(state, swdev).id })
+    await expectAction(reviewerRequest.graphql, 'completeRequest', requestAction('completeRequest'), { appRequestId })
+    state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(state.phase).toEqual('COMPLETE')
+    for (const app of state.applications) expect(app.actions.reopenApplication, app.programKey).toEqual(false)
+    expect(auditPrompt(state, controlRequirement, controlPrompt).actions.update).toEqual(false)
   })
 })

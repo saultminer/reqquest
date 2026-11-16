@@ -396,6 +396,8 @@ export interface Application {
 
 export interface ApplicationActions {
     advanceWorkflow: Scalars['Boolean']
+    completeApplication: Scalars['Boolean']
+    reopenApplication: Scalars['Boolean']
     rescindApplication: Scalars['Boolean']
     restoreApplication: Scalars['Boolean']
     reverseWorkflow: Scalars['Boolean']
@@ -579,12 +581,14 @@ export interface Mutation {
     acceptOffer: ValidatedAppRequestResponse
     /** Add a note to the app request. */
     addNote: ValidatedNoteResponse
-    /** Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. In the non-blocking (WORKFLOW_NONBLOCKING) phase the workflow is non-sequential with all non-blocking requirements editable at once and once they are all resolved this becomes a single "Send to Complete" action that moves the application to COMPLETE. */
+    /** Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. Non-blocking workflow is not sequential and is not advanced: once all of its requirements are resolved the application is READY_TO_COMPLETE and is finished with completeApplication. */
     advanceWorkflow: ValidatedAppRequestResponse
     /** Cancel or withdraw the app request, depending on its current phase. This is only available if the app request is in a cancellable state. */
     cancelAppRequest: ValidatedAppRequestResponse
     /** Close the app request. Generally this is always available and will freeze the request/applications in their current phase/status. */
     closeAppRequest: ValidatedAppRequestResponse
+    /** Marks a program complete during non-blocking workflow. Available when the application is READY_TO_COMPLETE, meaning none of its non-blocking requirements are PENDING. The application moves to COMPLETE, which locks its non-blocking prompts; the appRequest stays in WORKFLOW_NONBLOCKING until completeRequest, which requires every application to be COMPLETE. */
+    completeApplication: ValidatedAppRequestResponse
     /** Complete the app request. This is generally only available if request is in non-blocking workflow and all applications are complete. */
     completeRequest: ValidatedAppRequestResponse
     /** Make an offer on the app request. If all applications are ineligible, or if there are no acceptance requirements, the applications will advance to the non-blocking workflow, or absent that, be marked complete. */
@@ -602,6 +606,8 @@ export interface Mutation {
     markPeriodReviewed: ValidatedPeriodResponse
     /** Reopen the app request. This is only available if the app request is in a state that allows reopening. */
     reopenAppRequest: ValidatedAppRequestResponse
+    /** Reopens a program that was marked complete with completeApplication, while the appRequest is still in WORKFLOW_NONBLOCKING, so its non-blocking prompts can be edited again. Not available for an application that completed on its own because it had no non-blocking workflow left open. */
+    reopenApplication: ValidatedAppRequestResponse
     /** Rescinds the approved and/or accepted application. */
     rescind: ValidatedAppRequestResponse
     /** Restores a previously rescinded application to its previous state. */
@@ -1485,6 +1491,8 @@ export interface ApplicationGenqlSelection{
 
 export interface ApplicationActionsGenqlSelection{
     advanceWorkflow?: boolean | number
+    completeApplication?: boolean | number
+    reopenApplication?: boolean | number
     rescindApplication?: boolean | number
     restoreApplication?: boolean | number
     reverseWorkflow?: boolean | number
@@ -1703,9 +1711,9 @@ export interface MutationGenqlSelection{
     acceptOffer?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID']} })
     /** Add a note to the app request. */
     addNote?: (ValidatedNoteResponseGenqlSelection & { __args: {appRequestId: Scalars['ID'], 
-    /** The content of the note. HTML is expected. */
+    /** The content of the note. HTML is expected. Maximum 350 characters. */
     content: Scalars['String'], persistent?: (Scalars['Boolean'] | null), validateOnly?: (Scalars['Boolean'] | null)} })
-    /** Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. In the non-blocking (WORKFLOW_NONBLOCKING) phase the workflow is non-sequential with all non-blocking requirements editable at once and once they are all resolved this becomes a single "Send to Complete" action that moves the application to COMPLETE. */
+    /** Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. Non-blocking workflow is not sequential and is not advanced: once all of its requirements are resolved the application is READY_TO_COMPLETE and is finished with completeApplication. */
     advanceWorkflow?: (ValidatedAppRequestResponseGenqlSelection & { __args: {applicationId: Scalars['ID']} })
     /** Cancel or withdraw the app request, depending on its current phase. This is only available if the app request is in a cancellable state. */
     cancelAppRequest?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID'], 
@@ -1713,6 +1721,8 @@ export interface MutationGenqlSelection{
     dataVersion?: (Scalars['Int'] | null)} })
     /** Close the app request. Generally this is always available and will freeze the request/applications in their current phase/status. */
     closeAppRequest?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID']} })
+    /** Marks a program complete during non-blocking workflow. Available when the application is READY_TO_COMPLETE, meaning none of its non-blocking requirements are PENDING. The application moves to COMPLETE, which locks its non-blocking prompts; the appRequest stays in WORKFLOW_NONBLOCKING until completeRequest, which requires every application to be COMPLETE. */
+    completeApplication?: (ValidatedAppRequestResponseGenqlSelection & { __args: {applicationId: Scalars['ID']} })
     /** Complete the app request. This is generally only available if request is in non-blocking workflow and all applications are complete. */
     completeRequest?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID']} })
     /** Make an offer on the app request. If all applications are ineligible, or if there are no acceptance requirements, the applications will advance to the non-blocking workflow, or absent that, be marked complete. */
@@ -1730,6 +1740,8 @@ export interface MutationGenqlSelection{
     markPeriodReviewed?: (ValidatedPeriodResponseGenqlSelection & { __args: {periodId: Scalars['ID'], validateOnly?: (Scalars['Boolean'] | null)} })
     /** Reopen the app request. This is only available if the app request is in a state that allows reopening. */
     reopenAppRequest?: (ValidatedAppRequestResponseGenqlSelection & { __args: {appRequestId: Scalars['ID']} })
+    /** Reopens a program that was marked complete with completeApplication, while the appRequest is still in WORKFLOW_NONBLOCKING, so its non-blocking prompts can be edited again. Not available for an application that completed on its own because it had no non-blocking workflow left open. */
+    reopenApplication?: (ValidatedAppRequestResponseGenqlSelection & { __args: {applicationId: Scalars['ID']} })
     /** Rescinds the approved and/or accepted application. */
     rescind?: (ValidatedAppRequestResponseGenqlSelection & { __args: {applicationId: Scalars['ID'], reason: Scalars['String'], validateOnly?: (Scalars['Boolean'] | null)} })
     /** Restores a previously rescinded application to its previous state. */

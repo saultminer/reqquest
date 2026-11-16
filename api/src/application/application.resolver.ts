@@ -39,9 +39,19 @@ export class ApplicationResolver {
     return application
   }
 
-  @Mutation(returns => ValidatedAppRequestResponse, { description: 'Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. In the non-blocking (WORKFLOW_NONBLOCKING) phase the workflow is non-sequential with all non-blocking requirements editable at once and once they are all resolved this becomes a single "Send to Complete" action that moves the application to COMPLETE.' })
+  @Mutation(returns => ValidatedAppRequestResponse, { description: 'Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. Non-blocking workflow is not sequential and is not advanced: once all of its requirements are resolved the application is READY_TO_COMPLETE and is finished with completeApplication.' })
   async advanceWorkflow (@Ctx() ctx: RQContext, @Arg('applicationId', type => ID) applicationId: string) {
     return await ctx.svc(ApplicationService).advanceWorkflow(applicationId)
+  }
+
+  @Mutation(returns => ValidatedAppRequestResponse, { description: 'Marks a program complete during non-blocking workflow. Available when the application is READY_TO_COMPLETE, meaning none of its non-blocking requirements are PENDING. The application moves to COMPLETE, which locks its non-blocking prompts; the appRequest stays in WORKFLOW_NONBLOCKING until completeRequest, which requires every application to be COMPLETE.' })
+  async completeApplication (@Ctx() ctx: RQContext, @Arg('applicationId', type => ID) applicationId: string) {
+    return await ctx.svc(ApplicationService).completeApplication(applicationId)
+  }
+
+  @Mutation(returns => ValidatedAppRequestResponse, { description: 'Reopens a program that was marked complete with completeApplication, while the appRequest is still in WORKFLOW_NONBLOCKING, so its non-blocking prompts can be edited again. Not available for an application that completed on its own because it had no non-blocking workflow left open.' })
+  async reopenApplication (@Ctx() ctx: RQContext, @Arg('applicationId', type => ID) applicationId: string) {
+    return await ctx.svc(ApplicationService).reopenApplication(applicationId)
   }
 
   @Mutation(returns => ValidatedAppRequestResponse, { description: 'Moves the application back to the previous blocking workflow stage. Non-blocking workflow stages are excluded from the reverse order, so this only steps back through the blocking workflow during the review (SUBMITTED) phase.  If no blocking then moved to APPROVAL' })
@@ -75,6 +85,16 @@ export class ApplicationActionsResolver {
   @FieldResolver(returns => Boolean)
   reverseWorkflow (@Ctx() ctx: RQContext, @Root() application: Application) {
     return ctx.svc(ApplicationService).mayReverseWorkflow(application)
+  }
+
+  @FieldResolver(returns => Boolean, { description: 'True when the current user may mark this program complete: the appRequest is in non-blocking workflow and none of the application\'s non-blocking requirements are PENDING.' })
+  completeApplication (@Ctx() ctx: RQContext, @Root() application: Application) {
+    return ctx.svc(ApplicationService).mayCompleteApplication(application)
+  }
+
+  @FieldResolver(returns => Boolean, { description: 'True when the current user may reopen this program after it was marked complete, to edit its non-blocking workflow again.' })
+  reopenApplication (@Ctx() ctx: RQContext, @Root() application: Application) {
+    return ctx.svc(ApplicationService).mayReopenApplication(application)
   }
 
   @FieldResolver(returns => Boolean)

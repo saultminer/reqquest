@@ -1,4 +1,4 @@
-import { AppRequest, AppRequestPhase, appRequestPhaseOrder, assertNoKeyCollisions, assertNoProgramTitleCollisions, requirementRegistry } from '../internal.js'
+import { AppRequest, AppRequestPhase, appRequestPhaseOrder, appRequestPhaseReached, assertNoKeyCollisions, assertNoProgramTitleCollisions, requirementRegistry } from '../internal.js'
 import type { RequirementKey } from './keys.js'
 
 export interface ProgramDefinition {
@@ -145,28 +145,33 @@ export interface WorkflowStage {
    * For workflows that are set nonBlocking: true, this property identifies in what AppRequestPhase
    * these workflow requirements first become visible/editable.  Once visible these workflows remain visible
    * for the remainder of the AppRequest lifecycle, and editable until `nonBlockingSunset` (if any) is
-   * reached. Defaults to WORKFLOW_NONBLOCKING,
+   * reached or their program is marked complete. Defaults to WORKFLOW_NONBLOCKING,
    * which preserves the legacy behavior of only surfacing non-blocking workflow requirements once the
    * request reaches the WORKFLOW_NONBLOCKING phase.
    */
   nonBlockingEmergence?: AppRequestPhase.STARTED | AppRequestPhase.SUBMITTED | AppRequestPhase.ACCEPTANCE | AppRequestPhase.WORKFLOW_NONBLOCKING
   /**
-   * For workflows that are set nonBlocking: true, this property identifies the AppRequestPhase at
-   * which this stage's prompts stop being editable. It is the opposite of `nonBlockingEmergence`:
-   * once the request reaches this phase, nobody can edit the stage's prompts any more - not even
-   * with `update_anytime` - though the stage and its answers stay visible. Leave it unset and the
-   * stage stays editable for the remainder of the AppRequest lifecycle.
+   * For workflows that are set nonBlocking: true, this closes the stage early: it identifies the
+   * AppRequestPhase at which this stage's prompts stop being editable. It is the opposite of
+   * `nonBlockingEmergence`. Once the request reaches this phase, nobody can edit the stage's prompts
+   * any more - not even with `update_anytime` - though the stage and its answers stay visible.
+   *
+   * Every non-blocking stage is locked anyway once a reviewer marks its program complete, and so
+   * once the request is COMPLETE, which is why COMPLETE is not an option here. Leave this unset and
+   * the stage simply stays editable until then.
    *
    * It must come after the emergence phase, or the stage would never be editable; that is checked
-   * at startup. A stage with no `nonBlockingEmergence` emerges at WORKFLOW_NONBLOCKING, so the only
-   * sunset it can have is COMPLETE.
+   * at startup. A stage with no `nonBlockingEmergence` emerges at WORKFLOW_NONBLOCKING, the last
+   * phase a sunset may name, so it cannot have a sunset at all - give it an earlier emergence first.
    *
    * The sunset only stops edits. It does not change evaluation: a requirement still PENDING when
    * its stage sunsets keeps holding the request back from COMPLETE, exactly as described under
-   * `nonBlocking`. Moving the request back to a phase before the sunset (for example returning from
-   * COMPLETE to non-blocking workflow) makes the stage editable again.
+   * `nonBlocking`. Moving the request back to a phase before the sunset makes the stage editable
+   * again. A program whose non-blocking stages have all sunset has nothing left for a reviewer to
+   * change, so it completes on its own instead of waiting to be marked complete, and cannot be
+   * reopened.
    */
-  nonBlockingSunset?: AppRequestPhase.SUBMITTED | AppRequestPhase.ACCEPTANCE | AppRequestPhase.WORKFLOW_NONBLOCKING | AppRequestPhase.COMPLETE
+  nonBlockingSunset?: AppRequestPhase.SUBMITTED | AppRequestPhase.ACCEPTANCE | AppRequestPhase.WORKFLOW_NONBLOCKING
   /**
    * The title of the stage, displayed to the user.
    */
@@ -190,11 +195,16 @@ function assertValidNonBlockingWindow (programKey: string, stage: WorkflowStage)
     return
   }
   if (stage.nonBlockingSunset == null) return
+  if ((stage.nonBlockingSunset as AppRequestPhase) === AppRequestPhase.COMPLETE) throw new Error(`${where} has nonBlockingSunset COMPLETE. That is not needed: a non-blocking stage is always locked once its program is marked complete. Remove nonBlockingSunset.`)
   const emergence = stage.nonBlockingEmergence ?? AppRequestPhase.WORKFLOW_NONBLOCKING
   if (appRequestPhaseOrder.indexOf(stage.nonBlockingSunset) <= appRequestPhaseOrder.indexOf(emergence)) {
-    const emergenceDescription = stage.nonBlockingEmergence == null ? `${emergence} (the default, since nonBlockingEmergence is not set)` : emergence
-    throw new Error(`${where} has nonBlockingSunset ${stage.nonBlockingSunset}, which is not after its emergence phase ${emergenceDescription}. The stage would never be editable. Phases in order: ${appRequestPhaseOrder.join(', ')}.`)
+    if (stage.nonBlockingEmergence == null) throw new Error(`${where} has nonBlockingSunset ${stage.nonBlockingSunset} but no nonBlockingEmergence, so it emerges at ${emergence} (the default) and would never be editable. Remove nonBlockingSunset, or set an earlier nonBlockingEmergence.`)
+    throw new Error(`${where} has nonBlockingSunset ${stage.nonBlockingSunset}, which is not after its emergence phase ${emergence}. The stage would never be editable. Phases in order: ${appRequestPhaseOrder.join(', ')}.`)
   }
+}
+
+export function nonBlockingSunsetReached (stage: WorkflowStage | undefined, phase: AppRequestPhase) {
+  return stage?.nonBlockingSunset != null && appRequestPhaseReached(phase, stage.nonBlockingSunset)
 }
 
 /**

@@ -56,14 +56,14 @@ test.describe.serial('Rescind and restore an approved benefit, notifying the app
 
   test('Reviewer - may neither rescind nor restore without the ApplicationApproved control', async ({ reviewerRequest }) => {
     const state = await getState(reviewerRequest.graphql, appRequestId)
-    expect(application(state, dog).actions).toEqual({ rescindApplication: false, restoreApplication: false })
+    expect(application(state, dog).actions).toMatchObject({ rescindApplication: false, restoreApplication: false })
     await expectRefused(reviewerRequest.graphql, 'rescind', rescindMutation, { applicationId, reason: rescindReason, validateOnly: false })
     await expectRefused(reviewerRequest.graphql, 'restore', restoreMutation, { applicationId, reason: restoreReason, validateOnly: false })
   })
 
   test('Su - a rescind needs a reason', async ({ suRequest }) => {
     let state = await getState(suRequest.graphql, appRequestId)
-    expect(application(state, dog).actions).toEqual({ rescindApplication: true, restoreApplication: false })
+    expect(application(state, dog).actions).toMatchObject({ rescindApplication: true, restoreApplication: false })
     const response = await suRequest.graphql<{ rescind: { success: boolean, messages: { message: string, arg: string }[] } }>(rescindMutation, { applicationId, reason: '   ', validateOnly: false })
     expect(response.rescind.success).toEqual(false)
     expect(response.rescind.messages.map(m => m.arg)).toContain('reason')
@@ -79,7 +79,7 @@ test.describe.serial('Rescind and restore an approved benefit, notifying the app
     expect(dogApp.rescindedStatus).toEqual('RESCINDED')
     expect(dogApp.status).toEqual('RESCINDED')
     expect(dogApp.rescindedReason).toEqual(rescindReason)
-    expect(dogApp.actions).toEqual({ rescindApplication: false, restoreApplication: true })
+    expect(dogApp.actions).toMatchObject({ rescindApplication: false, restoreApplication: true })
     // an already-rescinded benefit cannot be rescinded again
     await expectRefused(suRequest.graphql, 'rescind', rescindMutation, { applicationId, reason: rescindReason, validateOnly: false })
   })
@@ -92,7 +92,7 @@ test.describe.serial('Rescind and restore an approved benefit, notifying the app
     expect(dogApp.rescindedStatus).toEqual('RESTORED')
     expect(dogApp.status).toEqual('ELIGIBLE')
     expect(dogApp.restoredReason).toEqual(restoreReason)
-    expect(dogApp.actions).toEqual({ rescindApplication: true, restoreApplication: false })
+    expect(dogApp.actions).toMatchObject({ rescindApplication: true, restoreApplication: false })
     // nothing is rescinded any more, so there is nothing to restore
     await expectRefused(suRequest.graphql, 'restore', restoreMutation, { applicationId, reason: restoreReason, validateOnly: false })
   })

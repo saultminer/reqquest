@@ -312,12 +312,12 @@ rather than leaving it PENDING, or the request will never complete.
 * READY_FOR_WORKFLOW
 
   All review requirements have been resolved as non-PENDING, the application is ready to be moved into
-  the first non-blocking workflow stage. If there is no non-blocking workflow, this phase is skipped
-  and we proceed to REVIEW_COMPLETE.
+  the first blocking workflow stage. If there is no blocking workflow, a reviewer moves it on to
+  REVIEW_COMPLETE instead.
 
-  This phase is also used for applications that are in a workflow stage and all its requirements are
-  passing. The application is ready to move to the next non-blocking workflow. If there are no later non-blocking
-  workflow stages, this phase is skipped and we proceed to REVIEW_COMPLETE.
+  This phase is also used for applications that are in a blocking workflow stage and all its requirements are
+  passing. The application is ready to move to the next blocking workflow stage, or to REVIEW_COMPLETE after the
+  last one. It is not used during non-blocking workflow; see READY_TO_COMPLETE.
 * WORKFLOW_BLOCKING
 
   The application is currently in a blocking workflow stage with one or more PENDING requirements. We are waiting
@@ -334,13 +334,9 @@ rather than leaving it PENDING, or the request will never complete.
   All ACCEPTANCE requirements have been satisfied and are non-PENDING. The applicant may now finalize the
   application by submitting their acceptance.
 * WORKFLOW_NONBLOCKING
-  Now that the application results have been revealed to the applicant, and the applicant accepted the benefit,
-  the application proceeds through any non-blocking workflow stages. In the current workflow stage, there are
-  PENDING requirements that must be resolved before the application can move forward to the next workflow stage.
 
-  The READY_FOR_WORKFLOW status will re-appear at the end of each non-blocking workflow stage, when the application
-  is ready to move to the next one. When the last non-blocking workflow stage is complete, the application will
-  move to the COMPLETE phase.
+  The request is in its non-blocking workflow phase and this application still has a non-blocking workflow
+  requirement that is PENDING. Non-blocking stages are not sequential: all of them are open to reviewers at once.
 
   A non-blocking stage does not have to wait for this phase, and does not have to stay open forever. Two optional
   settings on the stage (`WorkflowStage` in `programs`) give it an editing window, each naming an *AppRequest* phase
@@ -349,19 +345,33 @@ rather than leaving it PENDING, or the request will never complete.
   * `nonBlockingEmergence` - the phase at which the stage's requirements first become visible and editable to
     reviewers. Defaults to WORKFLOW_NONBLOCKING. Set it to SUBMITTED, for example, to audit a review while it is
     still in progress.
-  * `nonBlockingSunset` - the phase at which the stage's prompts stop being editable. From that phase on the stage
-    is still shown, read-only, and nobody can change its answers. Leave it unset and the stage stays editable for
-    the rest of the lifecycle, COMPLETE included. It must be later than the emergence phase, which is checked at
-    startup; a stage with no `nonBlockingEmergence` can therefore only sunset at COMPLETE.
+  * `nonBlockingSunset` - closes the stage early: the phase (SUBMITTED, ACCEPTANCE or WORKFLOW_NONBLOCKING) at which
+    the stage's prompts stop being editable. From that phase on the stage is still shown, read-only, and nobody can
+    change its answers. Leave it unset and the stage stays editable until its program is marked complete (see
+    READY_TO_COMPLETE). It must be later than the emergence phase, which is checked at startup; a stage with no
+    `nonBlockingEmergence` therefore cannot have a sunset.
 
   The sunset only stops edits. A requirement that is still PENDING when its stage sunsets keeps holding the request
   back from COMPLETE, so either have it answered before then, have its logic return NOT_APPLICABLE, or move the
   request back to a phase before the sunset, which makes the stage editable again.
+* READY_TO_COMPLETE
+
+  None of the application's non-blocking workflow requirements are PENDING, but their prompts can still be edited.
+  A reviewer finishes the program with "Mark program complete" (the `completeApplication` mutation), which moves
+  the application to COMPLETE. Editing an answer so that a requirement is PENDING again drops it back to
+  WORKFLOW_NONBLOCKING.
+
+  This phase is skipped, and the application goes straight to COMPLETE, when there is nothing left for a reviewer
+  to edit: the program has no non-blocking stages, every one of them is already past its `nonBlockingSunset`, or
+  the application was screened out before submission.
 * COMPLETE
 
-  There is nothing left to do on this application. Other applications may still be working through their own
-  non-blocking workflow stages. An application whose program has nothing to do after submission reaches this phase
-  as soon as the request is submitted.
+  There is nothing left to do on this application, and its non-blocking workflow prompts are locked. The request
+  itself stays in non-blocking workflow until a reviewer completes it, which requires every application to be
+  COMPLETE. Until then a reviewer may "Reopen program" (the `reopenApplication` mutation) to correct a non-blocking
+  answer, unless the application completed on its own as described under READY_TO_COMPLETE. Once the request is
+  COMPLETE, "Return to final workflow tasks" reopens every program at once. An application whose program has
+  nothing to do after submission reaches this phase as soon as the request is submitted.
 
 ## Requirements
 Requirements are business rules that govern whether an applicant will be eligible for

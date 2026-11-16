@@ -135,13 +135,6 @@ export async function advanceWorkflow (applicationId: string, tdb: Queryable = d
   if (!application) throw new Error(`Application not found: ${applicationId}`)
   if (application.phase !== ApplicationPhase.READY_FOR_WORKFLOW) throw new Error('Application is not ready to advance workflow.')
 
-  // In the non-blocking (post-acceptance) phase the workflow is non-sequential, no stage stepping,
-  // this is the single explicit 'Send to Complete' action.
-  if (application.appRequestPhase === AppRequestPhase.WORKFLOW_NONBLOCKING) {
-    await tdb.update('UPDATE applications SET computedPhase = ?, workflowStage = ? WHERE id = ?', [ApplicationPhase.COMPLETE, null, applicationId])
-    return
-  }
-
   const stages = await tdb.getall<PeriodWorkflowRow>(`
     SELECT DISTINCT w.* FROM period_workflow_stages w
     INNER JOIN application_requirements r ON r.workflowStage = w.stageKey
@@ -176,6 +169,28 @@ export async function advanceWorkflow (applicationId: string, tdb: Queryable = d
   }
 
   await tdb.update('UPDATE applications SET computedPhase = ?, workflowStage = ? WHERE id = ?', [toPhase, toStage?.stageKey, applicationId])
+}
+
+/**
+ * Mark a program complete during non-blocking workflow. The application must be READY_TO_COMPLETE - every
+ * non-blocking requirement resolved. A COMPLETE application's non-blocking prompts are locked.
+ */
+export async function completeApplication (applicationId: string, tdb: Queryable = db) {
+  const [application] = await getApplications({ ids: [applicationId] }, tdb)
+  if (!application) throw new Error(`Application not found: ${applicationId}`)
+  if (application.appRequestPhase !== AppRequestPhase.WORKFLOW_NONBLOCKING || application.phase !== ApplicationPhase.READY_TO_COMPLETE) throw new Error('Application is not ready to be marked complete.')
+  await tdb.update('UPDATE applications SET computedPhase = ?, workflowStage = ? WHERE id = ?', [ApplicationPhase.COMPLETE, null, applicationId])
+}
+
+/**
+ * Undo completeApplication while the request is still in non-blocking workflow. The caller evaluates
+ * afterwards, which settles the application on READY_TO_COMPLETE or WORKFLOW_NONBLOCKING.
+ */
+export async function reopenApplication (applicationId: string, tdb: Queryable = db) {
+  const [application] = await getApplications({ ids: [applicationId] }, tdb)
+  if (!application) throw new Error(`Application not found: ${applicationId}`)
+  if (application.appRequestPhase !== AppRequestPhase.WORKFLOW_NONBLOCKING || application.phase !== ApplicationPhase.COMPLETE) throw new Error('Application cannot be reopened.')
+  await tdb.update('UPDATE applications SET computedPhase = ?, workflowStage = ? WHERE id = ?', [ApplicationPhase.WORKFLOW_NONBLOCKING, null, applicationId])
 }
 
 export async function reverseWorkflow (applicationId: string, tdb: Queryable = db) {

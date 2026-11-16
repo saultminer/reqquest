@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.js'
 import { promptMapReviewerCatDenied, promptMapReviewerAllDenied, promptMapApplicantAcceptance, promptMapReviewerNonBlocking } from './complex.promptdata.js'
-import { getState, application, requirement, answerAvailable, requestAction, applicationAction, expectAction, expectRefused, seededPeriodId, submitQualifiedRequest, finishBlockingWorkflow } from './complex.flow.js'
+import { getState, application, requirement, answerAvailable, requestAction, applicationAction, expectAction, expectRefused, seededPeriodId, submitQualifiedRequest, finishBlockingWorkflow, updatePromptMutation } from './complex.flow.js'
 
 /**
  * Non-blocking does not mean optional. A request cannot reach COMPLETE until every non-blocking requirement on every
@@ -58,15 +58,16 @@ test.describe.serial('Non-blocking workflow is owed by an application denied in 
   })
 
   test('Reviewer - the denied application still owes its non-blocking stage, so the request cannot complete', async ({ reviewerRequest }) => {
-    // send everything except the cat to complete first, so the cat is the only thing that can be holding the request
-    let state = await getState(reviewerRequest.graphql, appRequestId)
-    for (const app of state.applications.filter(a => a.programKey !== cat && a.phase === 'READY_FOR_WORKFLOW')) {
-      await expectAction(reviewerRequest.graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: app.id })
+    const state = await getState(reviewerRequest.graphql, appRequestId)
+    // dog and foster have no non-blocking stage, so there is nothing for a reviewer to mark complete: they are complete already
+    for (const other of [dog, foster]) {
+      expect(application(state, other).phase, other).toEqual('COMPLETE')
+      expect(application(state, other).actions.completeApplication, other).toEqual(false)
+      expect(application(state, other).actions.reopenApplication, other).toEqual(false)
     }
-    state = await getState(reviewerRequest.graphql, appRequestId)
-    for (const other of [dog, foster]) expect(['READY_TO_COMPLETE', 'COMPLETE'], other).toContain(application(state, other).phase)
     // the denied cat is held by its PENDING non-blocking requirement, whose prompt is open to the reviewer
     expect(application(state, cat).phase).toEqual('WORKFLOW_NONBLOCKING')
+    expect(application(state, cat).actions.completeApplication).toEqual(false)
     const microchip = requirement(state, cat, 'confirm_cat_microchip_service_workflow_req')
     expect(microchip.status).toEqual('PENDING')
     expect(microchip.prompts.find(p => p.key === 'confirm_cat_microchip_service_prompt')?.visibility).toEqual('AVAILABLE')
@@ -75,21 +76,67 @@ test.describe.serial('Non-blocking workflow is owed by an application denied in 
     await expectRefused(reviewerRequest.graphql, 'completeRequest', requestAction('completeRequest'), { appRequestId })
   })
 
-  test('Reviewer - answering the non-blocking stage releases the request to complete', async ({ reviewerRequest }) => {
+  test('Reviewer - answering the non-blocking stage makes the program ready to be marked complete, still editable', async ({ reviewerRequest }) => {
     await answerAvailable(reviewerRequest.graphql, appRequestId, promptMapReviewerNonBlocking)
+    const state = await getState(reviewerRequest.graphql, appRequestId)
+    const microchip = requirement(state, cat, 'confirm_cat_microchip_service_workflow_req')
+    expect(microchip.status).toEqual('MET')
+    expect(application(state, cat).phase).toEqual('READY_TO_COMPLETE')
+    expect(application(state, cat).actions.completeApplication).toEqual(true)
+    expect(application(state, cat).actions.reopenApplication).toEqual(false)
+    expect(microchip.prompts.find(p => p.key === 'confirm_cat_microchip_service_prompt')?.actions.update).toEqual(true)
+    // ready is not marked: the request waits for every program to be marked complete
+    expect(state.actions.completeRequest).toEqual(false)
+    await expectRefused(reviewerRequest.graphql, 'completeRequest', requestAction('completeRequest'), { appRequestId })
+    // non-blocking workflow is not advanced like blocking workflow is
+    await expectRefused(reviewerRequest.graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: application(state, cat).id })
+  })
+
+  test('Reviewer - marking the program complete locks its non-blocking answers and leaves the request waiting', async ({ reviewerRequest }) => {
     let state = await getState(reviewerRequest.graphql, appRequestId)
-    expect(requirement(state, cat, 'confirm_cat_microchip_service_workflow_req').status).toEqual('MET')
-    expect(application(state, cat).phase).toEqual('READY_FOR_WORKFLOW')
-    // in the non-blocking phase advancing is the single "send to complete" action
-    await expectAction(reviewerRequest.graphql, 'advanceWorkflow', applicationAction('advanceWorkflow'), { applicationId: application(state, cat).id })
+    const catId = application(state, cat).id
+    await expectAction(reviewerRequest.graphql, 'completeApplication', applicationAction('completeApplication'), { applicationId: catId })
     state = await getState(reviewerRequest.graphql, appRequestId)
     expect(application(state, cat).phase).toEqual('COMPLETE')
+    expect(application(state, cat).actions.completeApplication).toEqual(false)
+    expect(application(state, cat).actions.reopenApplication).toEqual(true)
+    const prompt = requirement(state, cat, 'confirm_cat_microchip_service_workflow_req').prompts.find(p => p.key === 'confirm_cat_microchip_service_prompt')!
+    expect(prompt.actions.update).toEqual(false)
+    await expectRefused(reviewerRequest.graphql, 'updatePrompt', updatePromptMutation, { promptId: prompt.id, data: promptMapReviewerNonBlocking.get(prompt.key)!.values().next().value })
+    // the request itself has not moved: it now only waits for its own Complete
+    expect(state.phase).toEqual('WORKFLOW_NONBLOCKING')
+    expect(state.actions.completeRequest).toEqual(true)
+  })
+
+  test('Reviewer - reopening the program makes its non-blocking answers editable again and holds the request', async ({ reviewerRequest }) => {
+    let state = await getState(reviewerRequest.graphql, appRequestId)
+    const catId = application(state, cat).id
+    await expectAction(reviewerRequest.graphql, 'reopenApplication', applicationAction('reopenApplication'), { applicationId: catId })
+    state = await getState(reviewerRequest.graphql, appRequestId)
+    expect(application(state, cat).phase).toEqual('READY_TO_COMPLETE')
+    const prompt = requirement(state, cat, 'confirm_cat_microchip_service_workflow_req').prompts.find(p => p.key === 'confirm_cat_microchip_service_prompt')!
+    expect(prompt.actions.update).toEqual(true)
+    await expectAction(reviewerRequest.graphql, 'updatePrompt', updatePromptMutation, { promptId: prompt.id, data: promptMapReviewerNonBlocking.get(prompt.key)!.values().next().value })
+    expect(state.actions.completeRequest).toEqual(false)
+    // a program that completed on its own was never marked, so it cannot be reopened
+    await expectRefused(reviewerRequest.graphql, 'reopenApplication', applicationAction('reopenApplication'), { applicationId: application(state, dog).id })
+  })
+
+  test('Reviewer - with every program marked complete the request completes, and nothing can be reopened per program', async ({ reviewerRequest }) => {
+    let state = await getState(reviewerRequest.graphql, appRequestId)
+    await expectAction(reviewerRequest.graphql, 'completeApplication', applicationAction('completeApplication'), { applicationId: application(state, cat).id })
+    state = await getState(reviewerRequest.graphql, appRequestId)
     expect(state.actions.completeRequest).toEqual(true)
     await expectAction(reviewerRequest.graphql, 'completeRequest', requestAction('completeRequest'), { appRequestId })
     state = await getState(reviewerRequest.graphql, appRequestId)
     expect(state.phase).toEqual('COMPLETE')
     // one accepted application makes the request ACCEPTED; the denied ones must not drag it to NOT_ACCEPTED
     expect(state.status).toEqual('ACCEPTED')
+    for (const app of state.applications) {
+      expect(app.phase, app.programKey).toEqual('COMPLETE')
+      expect(app.actions.reopenApplication, app.programKey).toEqual(false)
+    }
+    expect(requirement(state, cat, 'confirm_cat_microchip_service_workflow_req').prompts.find(p => p.key === 'confirm_cat_microchip_service_prompt')?.actions.update).toEqual(false)
   })
 })
 

@@ -869,7 +869,7 @@ enum AppRequestStatus {
   REVIEW_COMPLETE
 
   """
-  A reviewer has begun their part on at least one application, some APPROVAL requirement prompt data has been input, but application has not finished review yet.
+  A reviewer has begun their part on at least one application, or at least one application is ready for or in a blocking workflow stage, but the review has not finished yet.
   """
   REVIEW_IN_PROGRESS
 
@@ -969,6 +969,16 @@ type Application {
 
 type ApplicationActions {
   advanceWorkflow: Boolean!
+
+  """
+  True when the current user may mark this program complete: the appRequest is in non-blocking workflow and none of the application's non-blocking requirements are PENDING.
+  """
+  completeApplication: Boolean!
+
+  """
+  True when the current user may reopen this program after it was marked complete, to edit its non-blocking workflow again.
+  """
+  reopenApplication: Boolean!
   rescindApplication: Boolean!
   restoreApplication: Boolean!
   reverseWorkflow: Boolean!
@@ -1028,7 +1038,7 @@ enum ApplicationPhase {
   APPROVAL
 
   """
-  The application has been reviewed. If there was a workflow, it is complete. If there was an acceptance phase, the offer was accepted or rejected.
+  There is nothing left to do on this application. If there was a workflow, it is complete and its prompts, non-blocking ones included, are locked. If there was an acceptance phase, the offer was accepted or rejected. The appRequest may still be waiting on other applications or on its own Complete; until then a reviewer may reopen the application (reopenApplication) to correct its non-blocking workflow.
   """
   COMPLETE
 
@@ -1048,7 +1058,7 @@ enum ApplicationPhase {
   QUALIFICATION
 
   """
-  No application requirements are PENDING. The application is ready for the first workflow stage, but a reviewer must manually advance the phase. This phase will be automatically skipped if there are no workflow stages configured/enabled.
+  No application requirements are PENDING. The application is ready for the first or next blocking workflow stage, or for REVIEW_COMPLETE, but a reviewer must manually advance the phase. This phase will be automatically skipped if there are no workflow stages configured/enabled. It is not used during non-blocking workflow; see READY_TO_COMPLETE.
   """
   READY_FOR_WORKFLOW
 
@@ -1058,7 +1068,7 @@ enum ApplicationPhase {
   READY_TO_ACCEPT
 
   """
-  All non-blocking workflow stages are complete. The application is ready to be finalized.
+  None of the non-blocking workflow requirements are PENDING, but their prompts can still be edited. A reviewer must mark the program complete (completeApplication) to move it to COMPLETE. Skipped when there is nothing left for a reviewer to edit - no non-blocking stages, or every one of them past its nonBlockingSunset.
   """
   READY_TO_COMPLETE
 
@@ -1083,7 +1093,7 @@ enum ApplicationPhase {
   WORKFLOW_BLOCKING
 
   """
-  The application has been offered and accepted and now there is a workflow process to audit the review AFTER marking the application status as eligible or ineligible. Requirements from non-blocking workflow states cannot affect the application status, but the application will not proceed to the complete phase until all workflow stages are non-PENDING.
+  The appRequest is in its non-blocking workflow phase and this application still has a non-blocking workflow requirement that is PENDING. Non-blocking stages are not sequential, all of them are open at once. Requirements from non-blocking workflow stages cannot affect the application status, but the application will not proceed until all of them are non-PENDING.
   """
   WORKFLOW_NONBLOCKING
 }
@@ -1437,14 +1447,14 @@ type Mutation {
   addNote(
     appRequestId: ID!
 
-    """The content of the note. HTML is expected."""
+    """The content of the note. HTML is expected. Maximum 350 characters."""
     content: String!
     persistent: Boolean
     validateOnly: Boolean
   ): ValidatedNoteResponse!
 
   """
-  Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. In the non-blocking (WORKFLOW_NONBLOCKING) phase the workflow is non-sequential with all non-blocking requirements editable at once and once they are all resolved this becomes a single "Send to Complete" action that moves the application to COMPLETE.
+  Moves the application to the next blocking workflow stage. If phase is READY_FOR_WORKFLOW, moves to the first or next blocking workflow stage. If on the last blocking workflow, moves to REVIEW_COMPLETE. Non-blocking workflow is not sequential and is not advanced: once all of its requirements are resolved the application is READY_TO_COMPLETE and is finished with completeApplication.
   """
   advanceWorkflow(applicationId: ID!): ValidatedAppRequestResponse!
 
@@ -1464,6 +1474,11 @@ type Mutation {
   Close the app request. Generally this is always available and will freeze the request/applications in their current phase/status.
   """
   closeAppRequest(appRequestId: ID!): ValidatedAppRequestResponse!
+
+  """
+  Marks a program complete during non-blocking workflow. Available when the application is READY_TO_COMPLETE, meaning none of its non-blocking requirements are PENDING. The application moves to COMPLETE, which locks its non-blocking prompts; the appRequest stays in WORKFLOW_NONBLOCKING until completeRequest, which requires every application to be COMPLETE.
+  """
+  completeApplication(applicationId: ID!): ValidatedAppRequestResponse!
 
   """
   Complete the app request. This is generally only available if request is in non-blocking workflow and all applications are complete.
@@ -1494,6 +1509,11 @@ type Mutation {
   Reopen the app request. This is only available if the app request is in a state that allows reopening.
   """
   reopenAppRequest(appRequestId: ID!): ValidatedAppRequestResponse!
+
+  """
+  Reopens a program that was marked complete with completeApplication, while the appRequest is still in WORKFLOW_NONBLOCKING, so its non-blocking prompts can be edited again. Not available for an application that completed on its own because it had no non-blocking workflow left open.
+  """
+  reopenApplication(applicationId: ID!): ValidatedAppRequestResponse!
 
   """Rescinds the approved and/or accepted application."""
   rescind(applicationId: ID!, reason: String!, validateOnly: Boolean): ValidatedAppRequestResponse!

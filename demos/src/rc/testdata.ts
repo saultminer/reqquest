@@ -12,6 +12,17 @@ export const rcTestMigrations: DatabaseMigration[] = [
     }
   },
   {
+    id: '30251001090050',
+    execute: async (db, installTestData) => {
+      if (!installTestData) return
+      // The API only learns which periods carry non-blocking workflow from a cache that refreshes on its own clock, so a
+      // period created while the server is running reads as having none and completing its review skips straight to
+      // COMPLETE. This one exists at startup, for the specs that need to reach non-blocking workflow.
+      const periodId = await createPeriod({ name: 'Period 2', code: 'Period 2', openDate: DateTime.fromFormat('20260101080000', 'yyyyMMddHHmmss') })
+      await markPeriodReviewed(periodId)
+    }
+  },
+  {
     id: '30251001090100',
     execute: async db => {
       // rc's own mail template, used by the period_opened_notification scheduled hook. Not test

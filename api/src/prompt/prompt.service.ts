@@ -7,7 +7,7 @@ import {
   requirementRegistry, AppRequestStatusDB, AppRequest, updateAppRequestData, getAppRequests,
   getAppRequestData, appRequestTransaction, recordAppRequestActivity, appConfig, AppRequestData,
   AppRequestStatus, ApplicationPhase, ApplicationService, setRequirementPromptsInvalid,
-  AppRequestServiceInternal, AppRequestPhase, appRequestPhaseReached, RequirementType, periodConfigCache, programRegistry, resolveProgramLabels,
+  AppRequestServiceInternal, AppRequestPhase, appRequestPhaseReached, nonBlockingSunsetReached, RequirementType, periodConfigCache, programRegistry, resolveProgramLabels,
   statusVisibleToApplicant, applicantRequirementTypes, setRequirementPromptsValid,
   RQContext,
   RequirementPromptFilter,
@@ -259,12 +259,12 @@ export class RequirementPromptService extends AuthService<RequirementPrompt> {
     }
     const hasUpdate = this.hasControl('PromptAnswer', 'update', { ...prompt.authorizationKeys, ...prompt.appRequestTags })
     const hasUpdateAnytime = this.hasControl('PromptAnswer', 'update_anytime', { ...prompt.authorizationKeys, ...prompt.appRequestTags })
-    // non-blocking workflow stages are editable from their emergence phase until their sunset phase, or for the remainder of the request lifecycle when they have no sunset
+    // non-blocking workflow stages are editable from their emergence phase until their sunset phase or until their program is marked complete, whichever comes first
     if (prompt.requirementType === RequirementType.WORKFLOW) {
       const stage = programRegistry.getWorkflowStageByKey(prompt.workflowStage)
       if (stage?.nonBlocking) {
-        // decided here rather than falling through, so the per-phase branches below cannot re-open a stage that has sunset
-        if (stage.nonBlockingSunset != null && appRequestPhaseReached(prompt.appRequestDbPhase, stage.nonBlockingSunset)) return false
+        if (nonBlockingSunsetReached(stage, prompt.appRequestDbPhase)) return false
+        if (prompt.applicationPhase === ApplicationPhase.COMPLETE) return false
         const emergence = stage.nonBlockingEmergence ?? AppRequestPhase.WORKFLOW_NONBLOCKING
         if (appRequestPhaseReached(prompt.appRequestDbPhase, emergence)) return hasUpdate || hasUpdateAnytime
       }

@@ -693,6 +693,38 @@ class API extends APIBase {
     return this.mutationForDialog(response.advanceWorkflow)
   }
 
+  async completeApplication (applicationId: string) {
+    const response = await this.client.mutation({
+      __name: 'CompleteApplication',
+      completeApplication: {
+        __args: { applicationId },
+        success: true,
+        messages: {
+          message: true,
+          type: true,
+          arg: true
+        }
+      }
+    })
+    return this.mutationForDialog(response.completeApplication)
+  }
+
+  async reopenApplication (applicationId: string) {
+    const response = await this.client.mutation({
+      __name: 'ReopenApplication',
+      reopenApplication: {
+        __args: { applicationId },
+        success: true,
+        messages: {
+          message: true,
+          type: true,
+          arg: true
+        }
+      }
+    })
+    return this.mutationForDialog(response.reopenApplication)
+  }
+
   async reverseWorkflow (applicationId: string) {
     const response = await this.client.mutation({
       __name: 'ReverseWorkflow',
@@ -1012,6 +1044,8 @@ class API extends APIBase {
           actions: {
             advanceWorkflow: true,
             reverseWorkflow: true,
+            completeApplication: true,
+            reopenApplication: true,
             rescindApplication: true,
             restoreApplication: true
           },

@@ -1,5 +1,5 @@
 import { OneToManyLoader, PrimaryKeyLoader } from 'dataloader-factory'
-import { rescindApplication, restoreApplication, advanceWorkflow, appConfig, Application, ApplicationPhase, ApplicationRescindedStatus, ApplicationStatus, AppRequest, AppRequestPhase, AppRequestService, AppRequestStatus, AppRequestStatusDB, appRequestTransaction, AuthService, evaluateAppRequest, getApplications, PeriodWorkflowStage, programRegistry, ProgramService, reverseWorkflow, ValidatedAppRequestResponse, WorkflowStage } from '../internal.js'
+import { rescindApplication, restoreApplication, advanceWorkflow, completeApplication, reopenApplication, isPresubmissionIneligible, nonBlockingSunsetReached, appConfig, Application, ApplicationPhase, ApplicationRescindedStatus, ApplicationStatus, AppRequest, AppRequestPhase, AppRequestService, AppRequestStatus, AppRequestStatusDB, appRequestTransaction, AuthService, evaluateAppRequest, getApplications, PeriodWorkflowStage, programRegistry, ProgramService, reverseWorkflow, ValidatedAppRequestResponse, WorkflowStage } from '../internal.js'
 import { BaseService } from '@txstate-mws/graphql-server'
 import { isBlank } from 'txstate-utils'
 import { applicationPhaseNotifications, applicationBenefitRescindRestoreNotifications } from '../util/notifications.js'
@@ -34,11 +34,12 @@ export const statusVisibleToApplicantPhases = new Set<ApplicationPhase>([
 /**
  * Whether an application's results may be shown to the applicant, based on how far along it is.
  *
- * Phase alone is not enough because READY_FOR_WORKFLOW carries two very different meanings. While the
- * request is still in review it means 'review finished, waiting for a reviewer to advance into the
- * blocking workflow', nothing may be released yet, since a blocking stage can still change the
- * outcome. Once the review has been completed it means 'non-blocking workflow finished, ready to
- * complete', and the results were already released when the review completed.
+ * Phase alone is not enough because READY_FOR_WORKFLOW carries two different meanings. While the
+ * request is still in review it means 'review or a blocking stage finished, waiting for a reviewer to
+ * advance', and nothing may be released yet, since a blocking stage can still change the outcome. Any
+ * later request phase means the review has been completed and the results were released then. (It is
+ * no longer computed during non-blocking workflow, which uses READY_TO_COMPLETE, but applications
+ * stored before that change may still carry it until they are next evaluated.)
  */
 export function statusVisibleToApplicant (applicationPhase: ApplicationPhase, appRequestPhase: AppRequestPhase) {
   if (applicationPhase === ApplicationPhase.READY_FOR_WORKFLOW) {
@@ -75,9 +76,8 @@ export class ApplicationService extends AuthService<Application> {
 
   async getNextWorkflowStage (application: Application) {
     if (!this.mayAdvanceWorkflow(application)) return null
-    // Non-blocking workflow is non-sequential advancing goes straight to complete, so there is no "next stage"
-    // the rest of this only applies to the
-    // blocking workflow.
+    // Non-blocking workflow is non-sequential and is finished with completeApplication, not by advancing, so there is no
+    // "next stage". The rest of this only applies to the blocking workflow.
     if (application.appRequestPhase === AppRequestPhase.WORKFLOW_NONBLOCKING) return null
     const stages = await this.svc(ProgramService).findWorkflowStagesByPeriodIdAndProgramKey(application.periodId, application.programKey, { hasEnabledRequirements: true, blocking: true })
     if (!application.workflowStageKey) return stages[0]
@@ -129,6 +129,27 @@ export class ApplicationService extends AuthService<Application> {
     if (application.closed || application.rescindedStatus === ApplicationRescindedStatus.RESCINDED) return false
     if (application.phase !== ApplicationPhase.READY_FOR_WORKFLOW) return false
     if (application.appRequestComputedStatus === AppRequestStatus.REVIEW_COMPLETE) return false
+    if (this.isOwn(application) && !this.hasControl('AppRequest', 'review_own')) return false
+    return this.hasControl('AppRequest', 'review', application.appRequestTags)
+  }
+
+  mayCompleteApplication (application: Application) {
+    if (application.closed || application.rescindedStatus === ApplicationRescindedStatus.RESCINDED) return false
+    if (application.appRequestPhase !== AppRequestPhase.WORKFLOW_NONBLOCKING) return false
+    if (application.phase !== ApplicationPhase.READY_TO_COMPLETE) return false
+    if (this.isOwn(application) && !this.hasControl('AppRequest', 'review_own')) return false
+    return this.hasControl('AppRequest', 'review', application.appRequestTags)
+  }
+
+  mayReopenApplication (application: Application) {
+    if (application.closed || application.rescindedStatus === ApplicationRescindedStatus.RESCINDED) return false
+    if (application.appRequestPhase !== AppRequestPhase.WORKFLOW_NONBLOCKING) return false
+    if (application.phase !== ApplicationPhase.COMPLETE) return false
+    // only a program a reviewer could have marked complete can be reopened. One that completed on its own - screened out before
+    // submission, no non-blocking stages, or every one of them past its sunset - has nothing that reopening would make editable
+    if (isPresubmissionIneligible(application)) return false
+    const stages = programRegistry.get(application.programKey)?.workflowStages ?? []
+    if (!stages.some(stage => stage.nonBlocking && !nonBlockingSunsetReached(stage, application.appRequestPhase))) return false
     if (this.isOwn(application) && !this.hasControl('AppRequest', 'review_own')) return false
     return this.hasControl('AppRequest', 'review', application.appRequestTags)
   }
@@ -225,7 +246,39 @@ export class ApplicationService extends AuthService<Application> {
     const resp = new ValidatedAppRequestResponse({ success: true, messages: [] })
     resp.appRequest = await this.svc(AppRequestService).findByInternalId(application.appRequestInternalId)
     const newApplication = (await this.findByInternalId(application.internalId))!
-    await this.svc(AppRequestService).recordActivity(resp.appRequest!.internalId, 'Advanced', { description: `${application.navTitle} workflow from ${programRegistry.getWorkflowStageByKey(application.workflowStageKey)?.title ?? 'review'} to ${programRegistry.getWorkflowStageByKey(newApplication.workflowStageKey)?.title ?? (newApplication.appRequestPhase === AppRequestPhase.SUBMITTED ? 'review complete' : 'completion')}` })
+    await this.svc(AppRequestService).recordActivity(resp.appRequest!.internalId, 'Advanced', { description: `${application.navTitle} workflow from ${programRegistry.getWorkflowStageByKey(application.workflowStageKey)?.title ?? 'review'} to ${programRegistry.getWorkflowStageByKey(newApplication.workflowStageKey)?.title ?? 'review complete'}` })
+    if (resp.appRequest?.status !== application.appRequestComputedStatus) await appConfig.hooks?.appRequestStatus?.(this.ctx, resp.appRequest!, application.appRequestComputedStatus)
+    if (application.phase !== newApplication.phase) {
+      await appConfig.hooks?.applicationPhase?.(this.ctx, resp.appRequest!, newApplication.programKey, application.phase)
+      await Promise.all(applicationPhaseNotifications.map(n => n(this.ctx, resp.appRequest!, newApplication, application.phase)))
+    }
+    return resp
+  }
+
+  async completeApplication (applicationId: string) {
+    const [application] = await getApplications({ ids: [applicationId] })
+    if (!application) throw new Error(`Application not found: ${applicationId}`)
+    if (!this.mayCompleteApplication(application)) throw new Error('You may not mark this application complete.')
+    return await this.changeCompletion(application, 'Completed', `${application.navTitle} marked complete`, async db => { await completeApplication(application.id, db) })
+  }
+
+  async reopenApplication (applicationId: string) {
+    const [application] = await getApplications({ ids: [applicationId] })
+    if (!application) throw new Error(`Application not found: ${applicationId}`)
+    if (!this.mayReopenApplication(application)) throw new Error('You may not reopen this application.')
+    return await this.changeCompletion(application, 'Reopened', `${application.navTitle} reopened for non-blocking workflow`, async db => { await reopenApplication(application.id, db) })
+  }
+
+  private async changeCompletion (application: Application, action: string, description: string, change: (db: Parameters<Parameters<typeof appRequestTransaction>[1]>[0]) => Promise<void>) {
+    await appRequestTransaction(application.appRequestInternalId, async db => {
+      await change(db)
+      await evaluateAppRequest(application.appRequestInternalId, db)
+    })
+    this.loaders.clear()
+    const resp = new ValidatedAppRequestResponse({ success: true, messages: [] })
+    resp.appRequest = await this.svc(AppRequestService).findByInternalId(application.appRequestInternalId)
+    const newApplication = (await this.findByInternalId(application.internalId))!
+    await this.svc(AppRequestService).recordActivity(resp.appRequest!.internalId, action, { description })
     if (resp.appRequest?.status !== application.appRequestComputedStatus) await appConfig.hooks?.appRequestStatus?.(this.ctx, resp.appRequest!, application.appRequestComputedStatus)
     if (application.phase !== newApplication.phase) {
       await appConfig.hooks?.applicationPhase?.(this.ctx, resp.appRequest!, newApplication.programKey, application.phase)

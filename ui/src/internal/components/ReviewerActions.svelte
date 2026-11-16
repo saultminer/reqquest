@@ -169,7 +169,7 @@
   <div class="flow">
     <!-- <Select bind:selected={appAction} labelText="Next step" size="sm">
       <SelectItem value="" text="Choose one" />
-      <SelectItem disabled={!application.actions.advanceWorkflow} value="advanceWorkflow" text={'Send to ' + (application.nextWorkflowStage?.title ?? (!application.workflowStage?.blocking ? 'Complete' : 'Review Complete'))} />
+      <SelectItem disabled={!application.actions.advanceWorkflow} value="advanceWorkflow" text={'Send to ' + (application.nextWorkflowStage?.title ?? 'Review Complete')} />
       <SelectItem disabled={!application.actions.reverseWorkflow} value="reverseWorkflow" text={'Return to ' + (application.previousWorkflowStage?.title ?? 'Review')} />
     </Select>
     <Button disabled={!appAction} on:click={onAppAction} size="small" class="[ w-full ]">Update program</Button> -->

@@ -4,6 +4,11 @@ const overrideGpaWarningWorkflow: WorkflowStage = {
   key: 'override_gpa_warning',
   nonBlocking: true,
   nonBlockingEmergence: AppRequestPhase.STARTED,
+  // the override is only worth making while a decision is still being reached, so it closes when non-blocking workflow
+  // begins. It is the only non-blocking stage of every program but software_development, which makes those programs
+  // the demonstration of "nothing left open": they complete on their own in non-blocking workflow, with no
+  // "Mark program complete" and no "Reopen program". software_development has other stages still open, so it gets both.
+  nonBlockingSunset: AppRequestPhase.WORKFLOW_NONBLOCKING,
   title: 'Override GPA Warning',
   requirementKeys: ['reviewer_override_gpa_warning_req']
 }

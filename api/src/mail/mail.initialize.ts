@@ -1,7 +1,7 @@
 import { DatabaseMigration } from '../migrations'
 import { seedMailTemplates } from './mail.seed.js'
 import { updateMailTemplateContent } from './mail.database.js'
-import { applicationRescindedTemplate, applicationRestoredTemplate } from './templates/index.js'
+import { applicationRescindedTemplate, applicationRestoredTemplate, periodClosingReminderTemplate } from './templates/index.js'
 
 export const mailMigrations: DatabaseMigration[] = [
   {
@@ -79,6 +79,15 @@ export const mailMigrations: DatabaseMigration[] = [
       for (const { templateKey, subject, body, description } of [applicationRescindedTemplate, applicationRestoredTemplate]) {
         await updateMailTemplateContent({ templateKey, subject, body, description }, db)
       }
+    }
+  },
+  {
+    id: '20261116000000',
+    async execute (db) {
+      // period_closing_reminder wording was revised in reqquest-txstate#364 after 20260922000000 seeded the original;
+      // push the new content onto databases that already hold it. Overwrites local edits to that row.
+      const { templateKey, subject, body, description } = periodClosingReminderTemplate
+      await updateMailTemplateContent({ templateKey, subject, body, description }, db)
     }
   }
 ]

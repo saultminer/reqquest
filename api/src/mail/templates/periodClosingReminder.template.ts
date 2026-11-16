@@ -1,10 +1,10 @@
-const subject = 'Reminder: Your {{appName}} Request Closes {{closeDate}}'
+const subject = 'Submit Your Application: {{appName}}'
 
 const body = `Hello,
 
-A {{appName}} request for {{periodName}} was started but has not yet been submitted. The application period closes on {{closeDate}}, {{daysUntilClose}} day(s) from now. Requests that are not submitted by then cannot be considered.
+You previously started an application for {{appName}}. The submission period is closing soon, and unsubmitted applications may not be reviewed once the deadline passes.
 
-Please log in to finish and submit your request.
+Please log in to review your application status, complete your application, or withdraw it if it is no longer needed.
 
 <a href="{{loginLink}}">Login</a>
 

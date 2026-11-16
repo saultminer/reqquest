@@ -187,6 +187,8 @@ import RCOverrideGPAWarning from './rc/OverrideGPAWarning.svelte'
 import RCOverrideGPAWarningDisplay from './rc/OverrideGPAWarningDisplay.svelte'
 import RCHelpDeskWeekendAvailability from './rc/HelpDeskWeekendAvailability.svelte'
 import RCHelpDeskWeekendAvailabilityDisplay from './rc/HelpDeskWeekendAvailabilityDisplay.svelte'
+import RCFutureCommunicationOptIn from './rc/FutureCommunicationOptIn.svelte'
+import RCFutureCommunicationOptInDisplay from './rc/FutureCommunicationOptInDisplay.svelte'
 import RCHelpDeskCustomerService from './rc/HelpDeskCustomerService.svelte'
 import RCHelpDeskCustomerServiceDisplay from './rc/HelpDeskCustomerServiceDisplay.svelte'
 
@@ -469,6 +471,7 @@ function configureDemoInstanceParams (): AnyUIConfig {
       },
       requirements: {
         step1_prequal_req: {},
+        future_communication_opt_in_req: {},
         written_automation_req: {},
         evidence_automation_req: {},
         investigated_future_career_req: {},
@@ -500,6 +503,7 @@ function configureDemoInstanceParams (): AnyUIConfig {
       prompts: {
         pre_qual_prompt: { formComponent: PreQualPrompt, displayComponent: PreQualDisplay, displayMode: 'large' },
         pre_qual_user_info_prompt: { formComponent: RCPreQualUserInfoPrompt, displayComponent: RCPreQualUserInfoPromptDisplay },
+        future_communication_opt_in_prompt: { formComponent: RCFutureCommunicationOptIn, displayComponent: RCFutureCommunicationOptInDisplay },
         written_automation_prompt: { formComponent: WrittenAutomatinoPrompt, displayComponent: WrittenAutomationDisplay },
         evidence_automation_prompt: { formComponent: EvidenceWrittenAutomationPrompt, displayComponent: EvidenceWrittenAutomationDisplay },
         investigated_future_career_prompt: { formComponent: InvestigatedFutureCareerPrompt, displayComponent: InvestigatedFutureCareerDisplay },

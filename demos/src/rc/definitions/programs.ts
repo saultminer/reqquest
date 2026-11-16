@@ -14,6 +14,7 @@ const operations_infrastructure: ProgramDefinition = {
   requirementKeys: [
     'operations_infrastructure_opt_out_req',
     'step1_prequal_req',
+    'future_communication_opt_in_req',
     'weekend_coverage_req',
     'written_automation_req',
     'evidence_automation_req',
@@ -31,6 +32,7 @@ const software_development: ProgramDefinition = {
   requirementKeys: [
     'software_dev_opt_out_req',
     'step1_prequal_req',
+    'future_communication_opt_in_req',
     'data_related_puzzle_req',
     'assess_data_related_puzzle_req',
     'outside_class_example_req',
@@ -85,6 +87,7 @@ const project_management: ProgramDefinition = {
   requirementKeys: [
     'project_management_opt_out_req',
     'step1_prequal_req',
+    'future_communication_opt_in_req',
     'communication_req',
     'assess_communicationn_req',
     // 'attention_detail_req',
@@ -103,6 +106,7 @@ const application_management_support: ProgramDefinition = {
   requirementKeys: [
     'application_management_opt_out_req',
     'step1_prequal_req',
+    'future_communication_opt_in_req',
     'weekend_coverage_req',
     'technical_troubleshooting_req',
     'assess_technical_troubleshootingn_req',
@@ -123,6 +127,7 @@ const help_desk_associate: ProgramDefinition = {
   requirementKeys: [
     'help_desk_opt_out_req',
     'step1_prequal_req',
+    'future_communication_opt_in_req',
     'help_desk_weekend_availability_req',
     'help_desk_customer_service_req'
   ]

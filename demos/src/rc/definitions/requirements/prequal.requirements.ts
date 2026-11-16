@@ -1,5 +1,5 @@
 import { RequirementDefinition, RequirementStatus, RequirementType } from '@reqquest/api'
-import { minimumGpa, OverrideGPAWarningData, PreQualPromptData, PreQualUserInfoPromptData } from '../models/index.js'
+import { FutureCommunicationOptInData, minimumGpa, OverrideGPAWarningData, PreQualPromptData, PreQualUserInfoPromptData } from '../models/index.js'
 
 export const step1_prequal_req: RequirementDefinition<PreQualPromptData> = {
   type: RequirementType.PREQUAL,
@@ -22,6 +22,20 @@ export const step1_prequal_req: RequirementDefinition<PreQualPromptData> = {
     if (preQualPromptData.gpa < minimumGpa) return { status: RequirementStatus.WARNING, reason: `Minimum GPA of ${minimumGpa} commonly required`, blame: ['pre_qual_prompt'] }
     if (!preQualPromptData?.availability) return { status: RequirementStatus.WARNING, reason: 'Not being available 5-10 hours may be a reason for disqualification', blame: ['pre_qual_prompt'] }
 
+    return { status: RequirementStatus.MET }
+  }
+}
+
+export const future_communication_opt_in_req: RequirementDefinition<FutureCommunicationOptInData> = {
+  type: RequirementType.PREQUAL,
+  key: 'future_communication_opt_in_req',
+  title: 'Future communication',
+  navTitle: 'Future communication',
+  description: 'Applicant must choose whether to be contacted about future mentorships',
+  promptKeys: ['future_communication_opt_in_prompt'],
+  resolve: (data, config) => {
+    const promptData = data['future_communication_opt_in_prompt'] as FutureCommunicationOptInData
+    if (promptData?.optIn == null) return { status: RequirementStatus.PENDING, blame: ['future_communication_opt_in_prompt'] }
     return { status: RequirementStatus.MET }
   }
 }

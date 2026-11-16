@@ -36,6 +36,15 @@ export const PrequalUserInfoPromptSchema = {
 } as const satisfies SchemaObject
 export type PreQualUserInfoPromptData = FromSchema<typeof PrequalUserInfoPromptSchema>
 
+export const FutureCommunicationOptInSchema = {
+  type: 'object',
+  properties: {
+    optIn: { type: 'boolean' }
+  },
+  additionalProperties: false
+} as const satisfies SchemaObject
+export type FutureCommunicationOptInData = FromSchema<typeof FutureCommunicationOptInSchema>
+
 export const PrequalUserInfoPrestagePropmtSchema = {
   type: 'object',
   properties: {

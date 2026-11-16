@@ -1,5 +1,5 @@
 import { MutationMessage, PromptDefinition, PromptPreStagingRecurrence } from '@reqquest/api'
-import { minimumGpa, orgs, PrequalLsatPrestageData, PrequalLsatPrestageSchema, PreQualPromptData, PrequalPromptSchema, PreQualUserInfoPrestagePromptData, PrequalUserInfoPrestagePropmtSchema, PreQualUserInfoPromptData, PrequalUserInfoPromptSchema } from '../models/prequal.models.js'
+import { FutureCommunicationOptInData, FutureCommunicationOptInSchema, minimumGpa, orgs, PrequalLsatPrestageData, PrequalLsatPrestageSchema, PreQualPromptData, PrequalPromptSchema, PreQualUserInfoPrestagePromptData, PrequalUserInfoPrestagePropmtSchema, PreQualUserInfoPromptData, PrequalUserInfoPromptSchema } from '../models/prequal.models.js'
 import { MutationMessageType } from '@txstate-mws/graphql-server'
 
 export const pre_qual_user_info_prompt: PromptDefinition<PreQualUserInfoPromptData> = {
@@ -54,6 +54,18 @@ export const pre_qual_prompt: PromptDefinition<PreQualPromptData> = {
 
     if (data.availability == null) messages.push({ type: MutationMessageType.error, message: 'Please acknowledge availability expectations.', arg: 'availability' })
 
+    return messages
+  }
+}
+
+export const future_communication_opt_in_prompt: PromptDefinition<FutureCommunicationOptInData> = {
+  key: 'future_communication_opt_in_prompt',
+  title: 'Future communication',
+  description: 'Opt into communication for future mentorships available?',
+  schema: FutureCommunicationOptInSchema,
+  validate: (data, config) => {
+    const messages: MutationMessage[] = []
+    if (data.optIn == null) messages.push({ type: MutationMessageType.error, message: 'You must select whether you wish to opt into future communications', arg: 'optIn' })
     return messages
   }
 }

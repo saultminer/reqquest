@@ -22,6 +22,7 @@ const lowGpa = new Map<string, Map<string, any>>([
 const helpDeskQualified = new Map<string, Map<string, any>>([
   ['pre_qual_prompt', new Map([['pass', { gpa: 3.5, availability: true, acknowledgeExpectations: true }]])],
   ['pre_qual_user_info_prompt', new Map([['pass', { correct: true }]])],
+  ['future_communication_opt_in_prompt', new Map([['pass', { optIn: true }]])],
   ['help_desk_weekend_availability_prompt', new Map([['pass', { weekendAvailable: true }]])],
   ['help_desk_customer_service_prompt', new Map([['pass', { describeCustomerService: 'Walked a user through resetting their VPN profile.' }]])]
 ])

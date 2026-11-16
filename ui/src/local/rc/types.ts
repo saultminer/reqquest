@@ -120,6 +120,10 @@ export interface HelpDeskWeekendAvailability {
   weekendAvailable: boolean
 }
 
+export interface FutureCommunicationOptIn {
+  optIn: boolean
+}
+
 export interface HelpDeskCustomerService {
   describeCustomerService: string
 }

@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon'
-import { appConfig, AppRequestPhase, getAppRequests, getPeriods, MailService, type ScheduledHook } from '@reqquest/api'
+import { appConfig, AppRequestPhase, getAppRequestData, getAppRequests, getPeriods, MailService, type ScheduledHook } from '@reqquest/api'
 
 /**
  * rc's "a new period has opened" notification. Who should hear about a new period is specific to
@@ -7,7 +7,9 @@ import { appConfig, AppRequestPhase, getAppRequests, getPeriods, MailService, ty
  * defined by the demo, and doubles as the worked example of writing one.
  *
  * rc's rule: everyone who submitted an app request in the previous period is told when the next
- * period opens, unless they already have a request in the new period.
+ * period opens, unless they already have a request in the new period or answered "No" to that
+ * previous request's future_communication_opt_in_prompt. A previous request with no answer at all
+ * (it predates the prompt) is still notified.
  *
  * Runs hourly. Idempotency comes from the dedup key - one email per user per newly opened period -
  * and from only announcing the most recently opened period, and only within 7 days of its openDate.
@@ -32,11 +34,16 @@ export const periodOpenedNotification: ScheduledHook = {
     ])
     const alreadyApplied = new Set(currentRequests.map(ar => ar.userInternalId))
     // "submitted" = left the applicant phase; submittedAt is cleared on return-to-applicant, phase is the stable signal
-    const userIds = Array.from(new Set(
-      previousRequests
-        .filter(ar => ar.phase !== AppRequestPhase.STARTED && !alreadyApplied.has(ar.userInternalId))
-        .map(ar => ar.userInternalId)
-    ))
+    const candidates = previousRequests.filter(ar => ar.phase !== AppRequestPhase.STARTED && !alreadyApplied.has(ar.userInternalId))
+    if (!candidates.length) return
+
+    // prompt answers are not on the AppRequest rows, so load them for the candidates only
+    const optedOut = new Set(
+      (await getAppRequestData(candidates.map(ar => ar.internalId)))
+        .filter(row => row.data['future_communication_opt_in_prompt']?.optIn === false)
+        .map(row => row.id)
+    )
+    const userIds = Array.from(new Set(candidates.filter(ar => !optedOut.has(ar.internalId)).map(ar => ar.userInternalId)))
     if (!userIds.length) return
 
     await ctx.svc(MailService).sendmulti({

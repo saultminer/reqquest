@@ -799,7 +799,8 @@ index advances once per `reminderDays`, so the hourly re-runs in between insert 
 
 For time-based logic the built-in job does not cover, register jobs beside the other hooks. The
 rc demo carries a real one: when a new period opens, everyone who submitted a request in the
-previous period is told, unless they already have a request in the new one. It is three small
+previous period is told, unless they already have a request in the new one or opted out of future
+communication on that previous request (a prequal prompt answer, read with `getAppRequestData`). It is three small
 files, and together they are the recipe for any downstream scheduled email:
 
 - [demos/src/rc/hooks/periodOpenedNotification.ts](demos/src/rc/hooks/periodOpenedNotification.ts) -

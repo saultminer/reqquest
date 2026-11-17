@@ -505,6 +505,9 @@
   .prompts dt.isReviewerQuestion, .prompts dd.isReviewerQuestion {
     background-color: var(--background-cool-light);
   }
+  .prompts dt.isReviewerQuestion:not(.disabled), .prompts dd.isReviewerQuestion:not(.disabled) {
+    border-bottom-color: var(--cds-ui-04, #8d8d8d);
+  }
   .prompts dt.isReviewerQuestion.disabled, .prompts dd.isReviewerQuestion.disabled {
     background-color: #f2f2f2;
     color: #8C8C8C;

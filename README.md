@@ -364,6 +364,11 @@ rather than leaving it PENDING, or the request will never complete.
   This phase is skipped, and the application goes straight to COMPLETE, when there is nothing left for a reviewer
   to edit: the program has no non-blocking stages, every one of them is already past its `nonBlockingSunset`, or
   the application was screened out before submission.
+
+  On the reviewer screen the "Complete program review" panel finishes every program. Where this phase applies its
+  "Complete review" button runs `completeApplication`. Where it is skipped (the application's
+  `completesAfterNonBlocking` is false) nothing follows the last review or blocking workflow step, so the same
+  button performs that final `advanceWorkflow` in place of the section's "Mark complete", and "Edit review" reverses it.
 * COMPLETE
 
   There is nothing left to do on this application, and its non-blocking workflow prompts are locked. The request

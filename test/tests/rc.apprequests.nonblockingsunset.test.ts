@@ -127,6 +127,26 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
     await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
     await expect(reviewerPage.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(1)
     await expect(reviewerPage.getByRole('button', { name: /^Send to/ })).toHaveCount(0)
+
+    // only software development has non-blocking workflow still open in the non-blocking phase
+    const { appRequests } = await reviewerRequest.graphql<{ appRequests: { applications: { programKey: string, completesAfterNonBlocking: boolean }[] }[] }>(
+      'query ($ids: [ID!]) { appRequests(filter: { ids: $ids }) { applications { programKey completesAfterNonBlocking } } }', { ids: [appRequestId] })
+    const completesAfterNonBlocking = (key: string) => appRequests[0].applications.find(a => a.programKey === key)!.completesAfterNonBlocking
+    expect(completesAfterNonBlocking(swdev)).toEqual(true)
+    expect(completesAfterNonBlocking(ops)).toEqual(false)
+
+    // so operations & infrastructure has nothing after review: its last "Mark complete" is the panel's "Complete review",
+    // and "Edit review" takes it back
+    await reviewerPage.goto(`/requests/${appRequestId}/approve/${ops}`)
+    await expect(reviewerPage.getByText('review is ready to complete.')).toBeVisible()
+    await expect(reviewerPage.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
+    await markComplete(reviewerPage).click()
+    await expect(reopen(reviewerPage)).toHaveCount(1)
+    await expect(markComplete(reviewerPage)).toHaveCount(0)
+    expect(application(await getState(reviewerRequest.graphql, appRequestId), ops).phase).toEqual('REVIEW_COMPLETE')
+    await reopen(reviewerPage).click()
+    await expect(markComplete(reviewerPage)).toBeEnabled()
+    expect(application(await getState(reviewerRequest.graphql, appRequestId), ops).phase).toEqual('READY_FOR_WORKFLOW')
     await finishReview(reviewerRequest.graphql, appRequestId)
     expect((await getState(reviewerRequest.graphql, appRequestId)).phase).toEqual('WORKFLOW_NONBLOCKING')
   })

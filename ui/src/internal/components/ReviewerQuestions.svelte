@@ -228,6 +228,34 @@
   // the "Complete program review" panel counts the prompts on this page carrying the red "Required" dot
   $: requiredAnswerCount = new Set(sections.flatMap(section => section.requirements.flatMap(r => r.prompts.filter(isDisplayablePrompt).map(p => p.key)))
     .filter(key => promptIndicator[key]?.indicator === PromptIndicators.PENDING)).size
+  // A program with non-blocking workflow still open in the non-blocking phase is finished there, with completeApplication.
+  // Any other program has nothing after its last review or blocking workflow step, so the "Complete program review" panel
+  // takes over that step: it performs the final advance in place of that section's "Mark complete", and undoes it in place
+  // of "Edit answers".
+  $: selfClosing = !application.completesAfterNonBlocking
+  // the advance that lands on REVIEW_COMPLETE
+  $: finalAdvance = selfClosing && !!application.actions?.advanceWorkflow && !application.nextWorkflowStage
+  // a single program with no blocking stages is never advanced: the API offers the request's Complete Review directly
+  $: finalCompleteReview = selfClosing && !application.actions?.advanceWorkflow && application.phase === 'READY_FOR_WORKFLOW' &&
+    !application.workflowStage && !!basicRequestData?.actions.completeReview
+  $: finalReverse = selfClosing && application.phase === 'REVIEW_COMPLETE' && !!application.actions?.reverseWorkflow
+  let completionState: 'notready' | 'ready' | 'complete'
+  $: completionState = selfClosing
+    ? (['REVIEW_COMPLETE', 'ACCEPTANCE', 'READY_TO_ACCEPT', 'COMPLETE'].includes(application.phase) ? 'complete' : finalAdvance || finalCompleteReview ? 'ready' : 'notready')
+    : (application.phase === 'COMPLETE' ? 'complete' : application.phase === 'READY_TO_COMPLETE' ? 'ready' : 'notready')
+
+  async function completeProgramReview () {
+    if (!selfClosing) return await setProgramComplete(true)
+    if (finalAdvance) return await advanceWorkflow()
+    loading = true
+    await appRequestPhaseChange('completeReview')
+  }
+
+  async function editProgramReview () {
+    if (selfClosing) await reverseWorkflow()
+    else await setProgramComplete(false)
+  }
+
   // the one panel "Edit answers" sits on: the stage being reversed onto, or the last review panel when reversing back into review.
   // Requirement statuses don't matter here - a disqualified review must be reversible, and the API decides via actions.reverseWorkflow
   $: reverseTarget = application.previousWorkflowStage
@@ -353,11 +381,11 @@
     {:else}
       No questions in this section.
     {/if}
-    {#if !section.requirements.every(r => r.type === enumRequirementType.PREQUAL) && (application.actions?.advanceWorkflow || application.actions?.reverseWorkflow)}
+    {#if !section.requirements.every(r => r.type === enumRequirementType.PREQUAL) && ((application.actions?.advanceWorkflow && !finalAdvance) || (application.actions?.reverseWorkflow && !finalReverse))}
       <div class="flex justify-end mt-8">
-        {#if application.actions?.advanceWorkflow && (application.workflowStage?.key ? application.workflowStage?.key === section.requirements[0]?.workflowStage?.key : section.key === latestWorkflow)}
+        {#if application.actions?.advanceWorkflow && !finalAdvance && (application.workflowStage?.key ? application.workflowStage?.key === section.requirements[0]?.workflowStage?.key : section.key === latestWorkflow)}
           <Button size="small" on:click={advanceWorkflow}>Mark complete</Button>
-        {:else if application.actions?.reverseWorkflow && section.key === reverseTarget}
+        {:else if application.actions?.reverseWorkflow && !finalReverse && section.key === reverseTarget}
           <Button kind='secondary' size="small" on:click={reverseWorkflow}>Edit answers</Button>
         {/if}
       </div>
@@ -366,12 +394,12 @@
 {/each}
 <ProgramCompletionPanel
   title={application.title}
-  phase={application.phase}
-  canComplete={!!application.actions?.completeApplication}
-  canReopen={!!application.actions?.reopenApplication}
+  state={completionState}
+  canComplete={selfClosing ? finalAdvance || finalCompleteReview : !!application.actions?.completeApplication}
+  canReopen={selfClosing ? finalReverse : !!application.actions?.reopenApplication}
   requiredCount={requiredAnswerCount}
-  on:complete={() => setProgramComplete(true)}
-  on:reopen={() => setProgramComplete(false)}
+  on:complete={completeProgramReview}
+  on:reopen={editProgramReview}
 />
 
 {#if showPromptDialog && promptBeingEdited}

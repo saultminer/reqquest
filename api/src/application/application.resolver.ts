@@ -24,6 +24,11 @@ export class ApplicationResolver {
     return await ctx.svc(ProgramService).findWorkflowStagesByPeriodIdAndProgramKey(application.periodId, application.programKey)
   }
 
+  @FieldResolver(returns => Boolean, { description: 'True when this program has a non-blocking workflow stage that is still editable once the appRequest reaches WORKFLOW_NONBLOCKING, so a reviewer finishes it there with completeApplication. False when the program has no non-blocking stages, or every one of them reaches its nonBlockingSunset by then: such an application is finished by its last review or blocking workflow advance and goes to COMPLETE on its own.' })
+  async completesAfterNonBlocking (@Ctx() ctx: RQContext, @Root() application: Application) {
+    return await ctx.svc(ApplicationService).completesAfterNonBlocking(application)
+  }
+
   @FieldResolver(returns => PeriodWorkflowStage, { nullable: true, description: 'The next workflow stage for this application that would be active after activating the advanceWorkflow mutation. Null if the application or current user is not allowed to advance.' })
   async nextWorkflowStage (@Ctx() ctx: RQContext, @Root() application: Application) {
     return await ctx.svc(ApplicationService).getNextWorkflowStage(application)

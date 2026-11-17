@@ -899,6 +899,11 @@ type Application {
   awaitingCorrection: Boolean!
 
   """
+  True when this program has a non-blocking workflow stage that is still editable once the appRequest reaches WORKFLOW_NONBLOCKING, so a reviewer finishes it there with completeApplication. False when the program has no non-blocking stages, or every one of them reaches its nonBlockingSunset by then: such an application is finished by its last review or blocking workflow advance and goes to COMPLETE on its own.
+  """
+  completesAfterNonBlocking: Boolean!
+
+  """
   A prose summary of the applicant-side requirements of the program this application is for. Intended to be shown alongside statusReason when the application becomes ineligible before submission, since an applicant disqualified early may never have seen the program's prompts and the statusReason alone lacks context.
   """
   eligibilityDescription: String

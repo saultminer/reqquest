@@ -5,18 +5,17 @@
 
   /** the program's title, e.g. "Post 9/11 GI Bill" */
   export let title: string
-  /** the application's phase; only READY_TO_COMPLETE and COMPLETE are distinguished, anything else is "not ready" */
-  export let phase: string
-  /** the API offers completeApplication */
+  /** where the program stands; the caller decides, since what finishes a program depends on whether it has open non-blocking workflow */
+  export let state: 'notready' | 'ready' | 'complete'
+  /** the current user may finish the program now; "Complete review" is disabled without it */
   export let canComplete = false
-  /** the API offers reopenApplication - false for a program that completed on its own */
+  /** the current user may undo the completion; "Edit review" only shows with it */
   export let canReopen = false
   /** how many required answers are still outstanding, shown while the program is not ready */
   export let requiredCount = 0
 
   const dispatch = createEventDispatcher<{ complete: undefined, reopen: undefined }>()
 
-  $: state = phase === 'COMPLETE' ? 'complete' : phase === 'READY_TO_COMPLETE' ? 'ready' : 'notready'
   $: heading = state === 'complete'
     ? `${title} is complete`
     : state === 'ready'

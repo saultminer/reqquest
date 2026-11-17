@@ -358,6 +358,8 @@ export interface Application {
     applicantDescription: (Scalars['String'] | null)
     /** True when at least one reachable prompt on this application has been invalidated and must be re-answered. Status is still computed from the answers on file, so pair status displays with this flag to indicate that a correction is outstanding. */
     awaitingCorrection: Scalars['Boolean']
+    /** True when this program has a non-blocking workflow stage that is still editable once the appRequest reaches WORKFLOW_NONBLOCKING, so a reviewer finishes it there with completeApplication. False when the program has no non-blocking stages, or every one of them reaches its nonBlockingSunset by then: such an application is finished by its last review or blocking workflow advance and goes to COMPLETE on its own. */
+    completesAfterNonBlocking: Scalars['Boolean']
     /** A prose summary of the applicant-side requirements of the program this application is for. Intended to be shown alongside statusReason when the application becomes ineligible before submission, since an applicant disqualified early may never have seen the program's prompts and the statusReason alone lacks context. */
     eligibilityDescription: (Scalars['String'] | null)
     /** True when the program sets showIneligiblePreSubmit: false and this application is hidden by it: ineligible because of an applicant requirement, and that ineligibility arose before submission (the request is unsubmitted, or the application was already ineligible when it was submitted). Only the applicant ever receives a hidden application, so they can still change the answers that disqualified them; UIs should leave it out of program lists. */
@@ -1452,6 +1454,8 @@ export interface ApplicationGenqlSelection{
     applicantDescription?: boolean | number
     /** True when at least one reachable prompt on this application has been invalidated and must be re-answered. Status is still computed from the answers on file, so pair status displays with this flag to indicate that a correction is outstanding. */
     awaitingCorrection?: boolean | number
+    /** True when this program has a non-blocking workflow stage that is still editable once the appRequest reaches WORKFLOW_NONBLOCKING, so a reviewer finishes it there with completeApplication. False when the program has no non-blocking stages, or every one of them reaches its nonBlockingSunset by then: such an application is finished by its last review or blocking workflow advance and goes to COMPLETE on its own. */
+    completesAfterNonBlocking?: boolean | number
     /** A prose summary of the applicant-side requirements of the program this application is for. Intended to be shown alongside statusReason when the application becomes ineligible before submission, since an applicant disqualified early may never have seen the program's prompts and the statusReason alone lacks context. */
     eligibilityDescription?: boolean | number
     /** True when the program sets showIneligiblePreSubmit: false and this application is hidden by it: ineligible because of an applicant requirement, and that ineligibility arose before submission (the request is unsubmitted, or the application was already ineligible when it was submitted). Only the applicant ever receives a hidden application, so they can still change the answers that disqualified them; UIs should leave it out of program lists. */

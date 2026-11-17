@@ -86,6 +86,11 @@ export class ApplicationService extends AuthService<Application> {
     return stages[currentIndex + 1]
   }
 
+  async completesAfterNonBlocking (application: Application) {
+    const stages = await this.svc(ProgramService).findWorkflowStagesByPeriodIdAndProgramKey(application.periodId, application.programKey, { hasEnabledRequirements: true, blocking: false })
+    return stages.some(stage => !nonBlockingSunsetReached(programRegistry.getWorkflowStageByKey(stage.key), AppRequestPhase.WORKFLOW_NONBLOCKING))
+  }
+
   async getPreviousWorkflowStage (application: Application) {
     if (!this.mayReverseWorkflow(application)) return null
     // only blocking workflow stages participate in the reverse order, non-blocking stages are excluded.

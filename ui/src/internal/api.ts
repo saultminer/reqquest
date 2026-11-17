@@ -1033,6 +1033,7 @@ class API extends APIBase {
             key: true,
             blocking: true
           },
+          completesAfterNonBlocking: true,
           nextWorkflowStage: {
             key: true,
             title: true

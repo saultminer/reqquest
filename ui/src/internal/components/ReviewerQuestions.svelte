@@ -356,7 +356,7 @@
                     {/each}
                   </Form>
               {:else}
-                <div class="pr-4">
+                <div class="display-wrap">
                   <RenderDisplayComponent
                     {def}
                     appRequestId={appRequest.id}
@@ -477,10 +477,16 @@
   .prompts dt.large, .prompts dd.large {
     grid-column: span 2;
   }
-  /* When a display component's root is a PromptDisplayGrid — directly, or through the
-     <form> of an inline edit (formMode 'large') — hand it our column tracks via subgrid
-     so its challenge/response rows align with the real prompt rows. */
+  /* keeps read-only answers clear of the absolutely positioned edit button */
+  .prompts dd .display-wrap {
+    padding-right: 1rem;
+  }
+  /* When a display component's root is a PromptDisplayGrid — directly, through the
+     read-only .display-wrap, or through the <form> of an inline edit (formMode 'large') —
+     hand it our column tracks via subgrid so its challenge/response rows align with the
+     real prompt rows. */
   .prompts dd.large:has(> :global(.prompt-display-grid)),
+  .prompts dd.large:has(> .display-wrap > :global(.prompt-display-grid)),
   .prompts dd.large:has(> :global(form > .prompt-display-grid)) {
     display: grid;
     grid-template-columns: subgrid;
@@ -492,7 +498,16 @@
     --prompt-display-challenge-padding-left: 32px;
   }
   .prompts dd.large:has(> :global(.prompt-display-grid)) > :global(*),
+  .prompts dd.large:has(> .display-wrap > :global(.prompt-display-grid)) > :global(*),
   .prompts dd.large:has(> :global(form > .prompt-display-grid)) > :global(*) {
+    grid-column: 1 / -1;
+  }
+  .prompts dd.large > .display-wrap:has(> :global(.prompt-display-grid)) {
+    display: grid;
+    grid-template-columns: subgrid;
+    padding-right: 0;
+  }
+  .prompts dd.large > .display-wrap:has(> :global(.prompt-display-grid)) > :global(*) {
     grid-column: 1 / -1;
   }
   .prompts dd.large > :global(form:has(> .prompt-display-grid)) {

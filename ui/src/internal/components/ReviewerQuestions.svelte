@@ -16,13 +16,14 @@
   import DelayedSkeleton from '$internal/components/DelayedSkeleton.svelte';
   import WarningIconYellow from './WarningIconYellow.svelte';
   import MissingDefinitionNotification from './MissingDefinitionNotification.svelte';
+  import ProgramCompletionPanel from './ProgramCompletionPanel.svelte';
   import { toasts } from '@txstate-mws/svelte-components';
   import { randomid } from 'txstate-utils'
 
   type ApplicationRequirement = (typeof appRequest)['applications'][number]['requirements'][number]
 
   export let sections: { key: string, title: string, requirements: ApplicationRequirement[] }[]
-  /** the stage panel that gets the "Mark complete" button once the application is ready for workflow */
+  /** the stage panel that gets the blocking-workflow "Mark complete" button once the application is ready for workflow */
   export let lastStageKey: string | undefined = undefined
   export let promptIndicator: Record<string, any>
   export let promptStatusReasons: Record<string, StatusReason[]> = {}
@@ -196,13 +197,13 @@
     if (!response.success) {
       toasts.add({
         type: 'error',
-        title: complete ? 'Could not mark program complete' : 'Could not reopen program',
+        title: complete ? 'Could not complete program review' : 'Could not reopen program review',
         message: response.messages.map(m => m.message).join('\n') || 'An unknown error occurred.'
       })
     } else {
       toasts.add({
         type: 'success',
-        message: complete ? 'Program marked complete.' : 'Program reopened.'
+        message: complete ? 'Program review completed.' : 'Program review reopened for editing.'
       })
     }
   }
@@ -224,8 +225,9 @@
   $: readyForWorkflow = !application.nextWorkflowStage && application.phase === 'READY_FOR_WORKFLOW' ? lastStageKey : undefined
   // otherwise the button sits on the last non-stage panel on the page, wherever the layout put it
   $: latestWorkflow = readyForWorkflow ?? sections.filter(section => section.requirements.every(r => !r.workflowStage?.key)).pop()?.key
-  // "Mark program complete" / "Reopen program" sit on the last stage panel, or the last panel on the page if the layout shows no stage
-  $: completionPanel = sections.some(section => section.key === lastStageKey) ? lastStageKey : sections[sections.length - 1]?.key
+  // the "Complete program review" panel counts the prompts on this page carrying the red "Required" dot
+  $: requiredAnswerCount = new Set(sections.flatMap(section => section.requirements.flatMap(r => r.prompts.filter(isDisplayablePrompt).map(p => p.key)))
+    .filter(key => promptIndicator[key]?.indicator === PromptIndicators.PENDING)).size
   // the one panel "Edit answers" sits on: the stage being reversed onto, or the last review panel when reversing back into review.
   // Requirement statuses don't matter here - a disqualified review must be reversible, and the API decides via actions.reverseWorkflow
   $: reverseTarget = application.previousWorkflowStage
@@ -360,17 +362,17 @@
         {/if}
       </div>
     {/if}
-    {#if section.key === completionPanel && (application.actions?.completeApplication || application.actions?.reopenApplication)}
-      <div class="flex justify-end mt-8">
-        {#if application.actions?.completeApplication}
-          <Button size="small" on:click={() => setProgramComplete(true)}>Mark program complete</Button>
-        {:else}
-          <Button kind="secondary" size="small" on:click={() => setProgramComplete(false)}>Reopen program</Button>
-        {/if}
-      </div>
-    {/if}
   </Panel>
 {/each}
+<ProgramCompletionPanel
+  title={application.title}
+  phase={application.phase}
+  canComplete={!!application.actions?.completeApplication}
+  canReopen={!!application.actions?.reopenApplication}
+  requiredCount={requiredAnswerCount}
+  on:complete={() => setProgramComplete(true)}
+  on:reopen={() => setProgramComplete(false)}
+/>
 
 {#if showPromptDialog && promptBeingEdited}
 {@const formMode = uiRegistry.getPrompt(promptBeingEdited.key)?.formMode === 'full' ? 'large' : undefined}

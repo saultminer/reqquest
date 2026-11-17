@@ -357,7 +357,7 @@ rather than leaving it PENDING, or the request will never complete.
 * READY_TO_COMPLETE
 
   None of the application's non-blocking workflow requirements are PENDING, but their prompts can still be edited.
-  A reviewer finishes the program with "Mark program complete" (the `completeApplication` mutation), which moves
+  A reviewer finishes the program with "Complete review" (the `completeApplication` mutation), which moves
   the application to COMPLETE. Editing an answer so that a requirement is PENDING again drops it back to
   WORKFLOW_NONBLOCKING.
 
@@ -368,7 +368,7 @@ rather than leaving it PENDING, or the request will never complete.
 
   There is nothing left to do on this application, and its non-blocking workflow prompts are locked. The request
   itself stays in non-blocking workflow until a reviewer completes it, which requires every application to be
-  COMPLETE. Until then a reviewer may "Reopen program" (the `reopenApplication` mutation) to correct a non-blocking
+  COMPLETE. Until then a reviewer may "Edit review" (the `reopenApplication` mutation) to correct a non-blocking
   answer, unless the application completed on its own as described under READY_TO_COMPLETE. Once the request is
   COMPLETE, "Return to final workflow tasks" reopens every program at once. An application whose program has
   nothing to do after submission reaches this phase as soon as the request is submitted.

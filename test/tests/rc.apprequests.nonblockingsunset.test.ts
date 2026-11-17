@@ -74,8 +74,8 @@ const auditPrompt = (state: State, requirementKey: string, promptKey: string) =>
 /** Either way the reviewer screen offers an edit: the pencil/dialog button, or the prompt's form rendered inline. */
 const editControls = (promptId: number) => `#edit-btn-${promptId}, dd[role="group"][aria-labelledby="dt-title-${promptId}"]`
 
-const markComplete = (page: Page) => page.getByRole('button', { name: 'Mark program complete' })
-const reopen = (page: Page) => page.getByRole('button', { name: 'Reopen program' })
+const markComplete = (page: Page) => page.getByRole('button', { name: 'Complete review', exact: true })
+const reopen = (page: Page) => page.getByRole('button', { name: 'Edit review', exact: true })
 
 test.describe.serial('Non-blocking workflow closes at its sunset phase or when its program is marked complete', { tag: '@rc' }, () => {
   let appRequestId = 0
@@ -147,6 +147,9 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
     await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(1)
     await expect(reviewerPage.locator(`#dt-title-${sunset.id}`)).toHaveCount(1)
     await expect(reviewerPage.locator(editControls(sunset.id))).toHaveCount(0)
+    // the open stage's audits are unanswered, so the completion panel says so and offers nothing to click
+    await expect(reviewerPage.getByText('review is not ready to complete.')).toBeVisible()
+    await expect(markComplete(reviewerPage)).toBeDisabled()
   })
 
   test('Reviewer - a program whose non-blocking stages have all sunset completes on its own, with nothing to mark or reopen', async ({ reviewerPage, reviewerRequest }) => {
@@ -162,6 +165,8 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
     await reviewerPage.goto(`/requests/${appRequestId}/approve/${ops}`)
     await expect(reviewerPage.getByText('Reviewer Actions')).toBeVisible()
     await expect(reviewerPage.getByText('Override GPA Warning').first()).toBeVisible()
+    // it reads as complete, with neither action offered
+    await expect(reviewerPage.getByText('is complete', { exact: false }).first()).toBeVisible()
     await expect(markComplete(reviewerPage)).toHaveCount(0)
     await expect(reopen(reviewerPage)).toHaveCount(0)
   })
@@ -193,7 +198,8 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
     await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
     await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(1)
     await expect(reopen(reviewerPage)).toHaveCount(0)
-    await expect(markComplete(reviewerPage)).toHaveCount(1)
+    await expect(reviewerPage.getByText('review is ready to complete.')).toBeVisible()
+    await expect(markComplete(reviewerPage)).toBeEnabled()
     await markComplete(reviewerPage).click()
 
     await expect(reopen(reviewerPage)).toHaveCount(1)
@@ -213,7 +219,7 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
   test('Reviewer - reopening the program unlocks only the stages that have not sunset', async ({ reviewerPage, reviewerRequest }) => {
     await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
     await reopen(reviewerPage).click()
-    await expect(markComplete(reviewerPage)).toHaveCount(1)
+    await expect(markComplete(reviewerPage)).toBeEnabled()
 
     const state = await getState(reviewerRequest.graphql, appRequestId)
     expect(application(state, swdev).phase).toEqual('READY_TO_COMPLETE')

@@ -116,13 +116,17 @@ test.describe.serial('Non-blocking workflow closes at its sunset phase or when i
     await expect(reviewerPage.locator(editControls(control.id))).toHaveCount(1)
   })
 
-  test('Reviewer - answer the sunset stage while it is open, then finish the review', async ({ reviewerRequest }) => {
+  test('Reviewer - answer the sunset stage while it is open, then finish the review', async ({ reviewerPage, reviewerRequest }) => {
     // the control stage is deliberately left unanswered
     await answerAvailable(reviewerRequest.graphql, appRequestId, new Map([[sunsetPrompt, new Map([['pass', { ok: true }]])]]))
     await answerAvailable(reviewerRequest.graphql, appRequestId, reviewerAnswers)
     const state = await getState(reviewerRequest.graphql, appRequestId)
     expect(requirement(state, swdev, sunsetRequirement).status).toEqual('MET')
     for (const key of [swdev, ops]) expect(application(state, key).phase, key).toEqual('READY_FOR_WORKFLOW')
+    // advancing a stage is offered as "Mark complete", whatever stage comes next
+    await reviewerPage.goto(`/requests/${appRequestId}/approve/${swdev}`)
+    await expect(reviewerPage.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(1)
+    await expect(reviewerPage.getByRole('button', { name: /^Send to/ })).toHaveCount(0)
     await finishReview(reviewerRequest.graphql, appRequestId)
     expect((await getState(reviewerRequest.graphql, appRequestId)).phase).toEqual('WORKFLOW_NONBLOCKING')
   })

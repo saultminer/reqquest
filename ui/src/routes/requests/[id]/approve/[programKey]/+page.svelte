@@ -102,7 +102,7 @@
   // them; the default panels keep whatever is left, in requirementKeys order. Panels the layout does not
   // mention trail it in the default order, so a layout may be partial.
   let sections: Section[]
-  // the stage panel the "Send to" button lands on once the application is ready for workflow - the last
+  // the stage panel the "Mark complete" button lands on once the application is ready for workflow - the last
   // stage in lifecycle order, whatever order the layout displays the panels in
   let lastStageKey: string | undefined
   // it's not enough to show an indicator for the prompt's requirement status; since we only show the prompt

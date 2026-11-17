@@ -22,7 +22,7 @@
   type ApplicationRequirement = (typeof appRequest)['applications'][number]['requirements'][number]
 
   export let sections: { key: string, title: string, requirements: ApplicationRequirement[] }[]
-  /** the stage panel that gets the "Send to" button once the application is ready for workflow */
+  /** the stage panel that gets the "Mark complete" button once the application is ready for workflow */
   export let lastStageKey: string | undefined = undefined
   export let promptIndicator: Record<string, any>
   export let promptStatusReasons: Record<string, StatusReason[]> = {}
@@ -354,7 +354,7 @@
     {#if !section.requirements.every(r => r.type === enumRequirementType.PREQUAL) && (application.actions?.advanceWorkflow || application.actions?.reverseWorkflow)}
       <div class="flex justify-end mt-8">
         {#if application.actions?.advanceWorkflow && (application.workflowStage?.key ? application.workflowStage?.key === section.requirements[0]?.workflowStage?.key : section.key === latestWorkflow)}
-          <Button size="small" on:click={advanceWorkflow}>{'Send to ' + (application.nextWorkflowStage?.title ?? 'Review Complete')}</Button>
+          <Button size="small" on:click={advanceWorkflow}>Mark complete</Button>
         {:else if application.actions?.reverseWorkflow && section.key === reverseTarget}
           <Button kind='secondary' size="small" on:click={reverseWorkflow}>Edit answers</Button>
         {/if}

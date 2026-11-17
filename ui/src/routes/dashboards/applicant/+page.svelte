@@ -309,6 +309,7 @@
   <!-- Filter UI for recent/past applications -->
   <FilterUI
     search={isPastTab}
+    hasQuickFilters={pastFiltersReady}
     tabs={[
       { label: `Recent ${uiRegistry.getPlural('appRequest')}`, value: 'recent_applications' },
       { label: `Past ${uiRegistry.getPlural('appRequest')}`, value: 'past_applications' }

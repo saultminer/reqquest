@@ -4,7 +4,8 @@
 # the package's app shell plus the fixture's overlay. Run from ui/ with node 22+.
 #
 # Asserts: file override, folder replace, added route, disabled route, the drift lock in --strict
-# mode, and that a conflicting svelte cannot reach a build.
+# mode, the runtime/ drop-ins and the drift lock on a replaced runtime file, and that a conflicting
+# svelte cannot reach a build.
 set -eu
 
 UI=$(cd "$(dirname "$0")/.." && pwd)
@@ -35,6 +36,30 @@ grep -rqF FIXTURE-REPLACED-FOLDER build/_app || fail "replaced announcement/ pag
 [ ! -e .reqquest/src/routes/announcement/+page.ts ] || fail "folder replace kept the base +page.ts"
 [ ! -e .reqquest/src/routes/roles/users ] || fail "disabled route roles/users still present"
 [ -f build-runtime/nginx.conf ] && [ -f build-runtime/apply-env.sh ] || fail "runtime files missing from build-runtime/"
+[ -f build-runtime/nginx/server.d/fixture.conf ] || fail "runtime/nginx/server.d drop-in not in build-runtime/"
+[ -f build-runtime/apply-env.d/10-fixture.sh ] || fail "runtime/apply-env.d hook not in build-runtime/"
+[ -d build-runtime/nginx/http.d ] || fail "build-runtime/nginx/http.d must exist even when empty, so a Dockerfile can COPY it"
+cmp -s build-runtime/nginx.conf node_modules/@reqquest/ui/app/runtime/nginx.conf || fail "nginx.conf is not ReqQuest's although the fixture does not replace it"
+
+# a replaced runtime file is a fork, locked like a route override
+RUNTIME_BASE=node_modules/@reqquest/ui/app/runtime
+cp "$RUNTIME_BASE/nginx.conf" runtime/nginx.conf
+echo '# FIXTURE-REPLACED-NGINX' >> runtime/nginx.conf
+if npx reqquest-ui sync --strict 2>/dev/null; then fail "sync --strict accepted an unrecorded runtime/nginx.conf replacement"; fi
+npx reqquest-ui sync >/dev/null
+grep -q '"runtime"' reqquest-overrides.lock.json || fail "replaced runtime/nginx.conf not recorded in the lockfile"
+chmod u+w "$RUNTIME_BASE/nginx.conf"
+echo '# simulated upstream change' >> "$RUNTIME_BASE/nginx.conf"
+if npx reqquest-ui sync --strict 2>/dev/null; then fail "sync --strict accepted a drifted runtime/nginx.conf"; fi
+npx reqquest-ui sync --accept >/dev/null
+npx reqquest-ui sync --strict >/dev/null || fail "sync --strict still failing after --accept of runtime/nginx.conf"
+rm runtime/nginx.conf
+npx reqquest-ui sync >/dev/null
+
+# a file runtime/ does not recognize would never reach the image, so it must not pass quietly
+touch runtime/ngnix.conf
+if npx reqquest-ui sync 2>/dev/null; then fail "sync accepted an unrecognized file in runtime/"; fi
+rm runtime/ngnix.conf
 
 chmod u+w "$BASE/requests/+page.svelte"
 echo '<!-- simulated upstream change -->' >> "$BASE/requests/+page.svelte"

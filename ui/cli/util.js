@@ -1,5 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+
+/** A problem with the project that the developer must fix; the CLI prints its message and exits 1. */
+export class SyncError extends Error {}
 
 /**
  * Finds an installed package's directory by walking node_modules upward from `from`, the way Node
@@ -26,4 +30,16 @@ export function packageBin (name, from, binName = name.split('/').pop()) {
   const dir = packageDir(name, from)
   const { bin } = readJson(join(dir, 'package.json'))
   return join(dir, typeof bin === 'string' ? bin : bin[binName])
+}
+
+/** Relative paths of every file under `root`, or [] if it does not exist. */
+export function walk (root) {
+  if (!existsSync(root) || !statSync(root).isDirectory()) return []
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter(e => e.isFile())
+    .map(e => relative(root, join(e.parentPath, e.name)))
+}
+
+export function hash (content) {
+  return createHash('sha256').update(content).digest('hex').slice(0, 16)
 }

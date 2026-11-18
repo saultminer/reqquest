@@ -139,7 +139,7 @@ await server.start({ appConfig: { applicantGuide: true, ... }, ... })
 
 - The API renders the guide once at startup from your program, requirement and prompt definitions and serves it at `GET /help/applicant-guide.md`.
 - Your UI needs no changes. `/help/applicant-guide.md` on the UI origin redirects to the API's copy without asking for a login: the dev server does it with a route in the app shell, and the built image does it in nginx, from a snippet `apply-env.sh` writes using `PUBLIC_API_BASE`.
-- **It is public.** Anyone can read it without logging in. It contains titles, descriptions, default configuration, and the source of each applicant-facing requirement's `resolve` and prompt's `validate`, with comments removed. Reviewer-side requirements (PREAPPROVAL, APPROVAL, workflow) and their prompts are left out, and a rule that reads staff-provided data has its source withheld.
+- **It is public.** Anyone can read it without logging in. It contains titles, descriptions, default configuration, and the source of each applicant-facing requirement's `resolve` and prompt's `validate`, with comments removed. Reviewer-side requirements (PREAPPROVAL, APPROVAL, workflow) and their prompts are not described. An applicant rule that reads staff-provided data is still published in full, so it shows that staff prompt's key and how its answer is used (for example, that an override exists).
 - It shows the defaults in your code. Values an administrator changed for a period, and requirements disabled for a period, are not reflected.
 - If your API authenticates with `authenticateAll`, add `/help/applicant-guide.md` to `exceptRoutes`, otherwise the route answers 401.
 

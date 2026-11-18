@@ -110,8 +110,9 @@ export interface AppDefinition {
    * Off by default because the route requires no login and the guide publishes your applicant-side
    * rules: titles, descriptions, default configuration, and the source of each applicant-facing
    * requirement's `resolve` and prompt's `validate` with comments removed. Reviewer-side requirements
-   * (PREAPPROVAL, APPROVAL, workflow) and their prompts are left out, and a rule that reads
-   * staff-provided data has its source withheld.
+   * (PREAPPROVAL, APPROVAL, workflow) and their prompts are not described. An applicant rule that
+   * reads staff-provided data is still published in full, so it shows that staff prompt's key and
+   * how its answer is used.
    *
    * If you authenticate with `authenticateAll`, add `/help/applicant-guide.md` to `exceptRoutes` or
    * the route will answer 401.

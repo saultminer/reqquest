@@ -11,9 +11,11 @@ import {
  * It is rendered once at startup from the definitions handed to `RQServer.start`, and only when
  * `appConfig.applicantGuide` is on, because it is served without login.
  *
- * Nothing reviewer-side belongs in it. Only requirements of an applicant type are walked, only
- * prompts an applicant answers are described, and a rule that reads staff-provided data has its
- * source withheld, since the code would name what the reviewer is asked.
+ * Reviewer-side definitions are not described. Only requirements of an applicant type are walked
+ * and only prompts an applicant answers are listed. One thing does come through: an applicant rule
+ * that reads staff-provided data is published in full like any other, so its code shows that staff
+ * prompt's key and how its answer is used. Withholding it hid the applicant-side conditions too,
+ * which are what an applicant most needs explained.
  */
 
 let cachedGuide: string | undefined
@@ -216,19 +218,17 @@ export function renderApplicantGuide (): string {
       out.push('')
     }
     if (!ordered.length && !anyOrder.length && !reused.length && !staffDependent) out.push('This requirement asks the applicant nothing; it is decided automatically.', '')
-    if (staffDependent) {
-      const waitsOnStaff = req.allPromptKeys.some(key => !promptRegistry.isUserPrompt(key) && !req.ungatedPromptKeySet.has(key))
-      out.push(`This requirement also takes into account information staff provide during review${waitsOnStaff ? ', so it may stay undecided until then' : ', which can change its outcome later'}. Its exact logic is not published here.`, '')
-    }
 
     if (hasContent(req.configuration?.default)) {
       out.push('Default settings (administrators may change these per period; the rule refers to them as `config`):', '', ...codeBlock('json', JSON.stringify(req.configuration!.default, null, 2)), '')
     }
-    if (!staffDependent) {
-      const source = publishedSource(`requirement ${req.key}`, req.resolve, unparsed)
-      if (source) {
-        out.push('Rule logic. The first argument holds the applicant\'s answers keyed by prompt key (absent until that prompt is answered), the second the settings above. A `reason` is the message the applicant sees:', '', ...codeBlock('js', source), '')
-      }
+    if (staffDependent) {
+      const waitsOnStaff = req.allPromptKeys.some(key => !promptRegistry.isUserPrompt(key) && !req.ungatedPromptKeySet.has(key))
+      out.push(`Part of this requirement depends on a staff review step. ${waitsOnStaff ? 'It can stay undecided until staff have acted, and the applicant cannot answer that part.' : 'What staff record during review can change its outcome later; the applicant cannot answer that part.'} In the rule below, any answer key that is not one of the applicant prompts listed above is filled in by staff, not the applicant.`, '')
+    }
+    const source = publishedSource(`requirement ${req.key}`, req.resolve, unparsed)
+    if (source) {
+      out.push('Rule logic. The first argument holds the answers keyed by prompt key (absent until that prompt is answered), the second the settings above. A `reason` is the message the applicant sees:', '', ...codeBlock('js', source), '')
     }
   }
 

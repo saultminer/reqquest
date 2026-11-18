@@ -103,6 +103,21 @@ export interface AppDefinition {
    */
   multipleRequestsPerPeriod?: boolean
   /**
+   * Publish a Markdown guide for AI agents at `GET /help/applicant-guide.md`, so an applicant can ask
+   * their own agent what a prompt means or what to do next. It is rendered once at startup from your
+   * program, requirement and prompt definitions. The UI redirects `/help/applicant-guide.md` to it.
+   *
+   * Off by default because the route requires no login and the guide publishes your applicant-side
+   * rules: titles, descriptions, default configuration, and the source of each applicant-facing
+   * requirement's `resolve` and prompt's `validate` with comments removed. Reviewer-side requirements
+   * (PREAPPROVAL, APPROVAL, workflow) and their prompts are left out, and a rule that reads
+   * staff-provided data has its source withheld.
+   *
+   * If you authenticate with `authenticateAll`, add `/help/applicant-guide.md` to `exceptRoutes` or
+   * the route will answer 401.
+   */
+  applicantGuide?: boolean
+  /**
    * Instead of copying user and group data into the database, reqquest leaves it to the implementing application
    * to provide this data. This is useful for applications that already have a user and group database (e.g. Active Directory).
    *

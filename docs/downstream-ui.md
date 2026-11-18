@@ -129,6 +129,20 @@ The build needs Node 22 or later.
 
 A `.env` in your project root is merged over ReqQuest's template by key, so you only list what you add or change.
 
+## Applicant guide for AI agents
+
+ReqQuest can publish a Markdown guide that an applicant's AI agent reads to explain a prompt or the next step. It is off by default. Turn it on in your API:
+
+```ts
+await server.start({ appConfig: { applicantGuide: true, ... }, ... })
+```
+
+- The API renders the guide once at startup from your program, requirement and prompt definitions and serves it at `GET /help/applicant-guide.md`.
+- Your UI needs no changes. `/help/applicant-guide.md` on the UI origin redirects to the API's copy without asking for a login: the dev server does it with a route in the app shell, and the built image does it in nginx, from a snippet `apply-env.sh` writes using `PUBLIC_API_BASE`.
+- **It is public.** Anyone can read it without logging in. It contains titles, descriptions, default configuration, and the source of each applicant-facing requirement's `resolve` and prompt's `validate`, with comments removed. Reviewer-side requirements (PREAPPROVAL, APPROVAL, workflow) and their prompts are left out, and a rule that reads staff-provided data has its source withheld.
+- It shows the defaults in your code. Values an administrator changed for a period, and requirements disabled for a period, are not reflected.
+- If your API authenticates with `authenticateAll`, add `/help/applicant-guide.md` to `exceptRoutes`, otherwise the route answers 401.
+
 ## `package.json` options
 
 All options live under a `"reqquest"` key. There are deliberately only two, and no way to change the toolchain:

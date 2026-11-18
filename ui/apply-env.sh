@@ -7,4 +7,8 @@ grep --line-buffered -Rl . -e '$PUBLIC_' | while read line; do
   brotli -f $line
   gzip -fk $line
 done
+
+if [ -n "$PUBLIC_API_BASE" ]; then
+  printf 'location = /help/applicant-guide.md { return 302 %s/help/applicant-guide.md; }\n' "${PUBLIC_API_BASE%/}" > /etc/nginx/reqquest-help.conf
+fi
 exit 0

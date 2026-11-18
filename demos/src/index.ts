@@ -58,6 +58,7 @@ async function main () {
   await server.start({
     appConfig: {
       multipleRequestsPerPeriod,
+      applicantGuide: true,
       userLookups: {
         byLogins: async (logins: string[], applicableGroups: string[]) => {
           const pseudoInstitutionalRoles = (login: string) => {

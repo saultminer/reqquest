@@ -18,7 +18,8 @@ import {
   AccessRoleGroupResolver, AccessRoleGrantResolver, AccessGrantTagResolver, IndexCategoryResolver,
   AccessRoleGrantActionsResolver, AccessTagCategoryResolver, logMutation, installDownloadRoutes,
   AppRequestActivityResolver, PaginationResolver, noteMigrations, NoteResolver, NoteActionsResolver, ApplicationMetricResolver,
-  ensurePromptSigningKey, mailMigrations, announcementMigrations, AnnouncementResolver
+  ensurePromptSigningKey, mailMigrations, announcementMigrations, AnnouncementResolver,
+  buildApplicantGuide, installHelpRoutes
 } from './internal.js'
 import { scheduler, schedulerMigration } from './util/scheduler.js'
 import { periodClosingReminder } from './util/periodClosingReminder.js'
@@ -178,6 +179,15 @@ export class RQServer extends GQLServer {
     await super.swagger()
     await installDownloadRoutes(this.app)
     await installAppRequestRoutes(this.app)
+    if (appConfig.applicantGuide) {
+      // a diagnostic aid must never be the reason the API fails to start
+      try {
+        buildApplicantGuide()
+        installHelpRoutes(this.app)
+      } catch (e) {
+        console.error('Applicant guide could not be generated; /help/applicant-guide.md is unavailable.', e)
+      }
+    }
     await ensureConfigurationRecords()
     ensurePromptSigningKey()
     await super.start({ ...options, resolvers })

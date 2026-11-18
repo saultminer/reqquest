@@ -72,6 +72,8 @@ export * from './announcements/announcement.service.js'
 /** Routes */
 export * from './appRequest/appRequest.routes.js'
 export * from './download/download.routes.js'
+export * from './help/applicantGuide.js'
+export * from './help/help.routes.js'
 
 /** db migrations */
 export * from './migrations.js'

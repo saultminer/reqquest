@@ -1242,15 +1242,19 @@ class API extends APIBase {
 
   private async attachPromptConfigs<P extends { id: string, key: string, visibility: PromptVisibility, moot: boolean | null }> (appRequestId: string, applications: { requirements: { prompts: P[] }[] }[]) {
     const representativeByKey: Record<string, string> = {}
+    const mootRepresentativeByKey: Record<string, string> = {}
     const instancesByKey: Record<string, P[]> = {}
     for (const application of applications) {
       for (const requirement of application.requirements) {
         for (const prompt of requirement.prompts) {
           (instancesByKey[prompt.key] ??= []).push(prompt)
-          if (representativeByKey[prompt.key] == null && !prompt.moot && prompt.visibility !== enumPromptVisibility.UNREACHABLE) representativeByKey[prompt.key] = prompt.id
+          if (prompt.visibility === enumPromptVisibility.UNREACHABLE) continue
+          if (prompt.moot) mootRepresentativeByKey[prompt.key] ??= prompt.id
+          else representativeByKey[prompt.key] ??= prompt.id
         }
       }
     }
+    for (const [key, id] of Object.entries(mootRepresentativeByKey)) representativeByKey[key] ??= id
     const configs = await this.getPromptConfigs(appRequestId, Object.values(representativeByKey))
     const configByKey = keyby(configs, 'key')
     for (const [key, instances] of Object.entries(instancesByKey)) {

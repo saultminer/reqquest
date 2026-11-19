@@ -364,7 +364,7 @@
                     prompt={prompt}
                     prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}}
                     configData={prompt.configurationData}
-                    gatheredConfigData={prompt.gatheredConfigData} showMoot
+                    gatheredConfigData={prompt.gatheredConfigData}
                     statusReasons={promptStatusReasons[prompt.key] ?? []}
                     showInlineReviewNotification={prompt.actions.update && prompt.invalidated && !applicantRequirementTypes.has(requirement.type)} />
                 </div>

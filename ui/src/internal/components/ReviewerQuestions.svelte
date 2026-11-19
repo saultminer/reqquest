@@ -222,6 +222,16 @@
   }
   $: reviewerQuestionTallies = Object.fromEntries(sections.map(section => [section.key, reviewerQuestionTally(section)]))
 
+  function isPromptDisabled (app: typeof application, section: { requirements: ApplicationRequirement[] }, requirement: ApplicationRequirement, prompt: ApplicationRequirement['prompts'][number]) {
+    const def = uiRegistry.getPrompt(prompt.key)
+    const editMode = isInlineReviewerEditPrompt(def, requirement.type, prompt)
+    const currentWorkflow = app.workflowStage ? app.workflowStage.key === section.requirements[0]?.workflowStage?.key : undefined
+    return !!((!editMode && def?.formMode !== 'full') && (currentWorkflow || requirement.status !== enumRequirementStatus.MET))
+  }
+  $: disabledSections = new Set(sections.filter(section => section.requirements.some(requirement =>
+    reviewerRequirementTypes.has(requirement.type) && requirement.prompts.filter(isDisplayablePrompt).some(prompt =>
+      !uiRegistry.getPrompt(prompt.key)?.automation && isPromptDisabled(application, section, requirement, prompt)))).map(section => section.key))
+
   $: readyForWorkflow = !application.nextWorkflowStage && application.phase === 'READY_FOR_WORKFLOW' ? lastStageKey : undefined
   // otherwise the button sits on the last non-stage panel on the page, wherever the layout put it
   $: latestWorkflow = readyForWorkflow ?? sections.filter(section => section.requirements.every(r => !r.workflowStage?.key)).pop()?.key
@@ -283,7 +293,7 @@
         <!-- visible pill is hidden from screen readers in favor of the spelled-out text, and the status role announces changes politely on autosave -->
         <span role="status" class="reviewer-question-tally">
           <span aria-hidden="true">
-            <TagSet small tags={[{ label: `${tally.answered}/${tally.total} answered`, type: tally.answered === tally.total ? 'green' : 'yellow' }]} />
+            <TagSet small tags={[{ label: `${tally.answered}/${tally.total} answered`, type: disabledSections.has(section.key) ? 'gray' : tally.answered === tally.total ? 'green' : 'yellow' }]} />
           </span>
           <span class="bx--visually-hidden">{tally.answered} of {tally.total} questions answered</span>
         </span>
@@ -301,8 +311,7 @@
             {@const small = editMode && def?.formMode !== 'full' ? def?.formMode !== 'large' : def?.displayMode !== 'large'}
             {@const large = editMode && def?.formMode !== 'full' ? def?.formMode === 'large' : def?.displayMode === 'large'}
             {@const dtid = `dt-title-${prompt.id}`}
-            {@const currentWorkflow = application.workflowStage ? application.workflowStage?.key === section.requirements[0]?.workflowStage?.key : undefined}
-            {@const disabled = ((!editMode && def?.formMode !== 'full') && (currentWorkflow || requirement.status !== enumRequirementStatus.MET))}
+            {@const disabled = isPromptDisabled(application, section, requirement, prompt)}
             {#snippet editButtons()}
               {#if prompt.actions.update}
                 {#if prompt.invalidated && !applicantRequirementTypes.has(requirement.type)}
@@ -590,9 +599,5 @@
   }
   :global(.panel:has(.isReviewerQuestion.disabled) .panel-header) {
     background-color: #8C8C8C !important;
-  }
-  :global(.panel:has(.isReviewerQuestion.disabled) .reviewer-question-tally .bx--tag) {
-    background-color: var(--cds-tag-background-gray, #e0e0e0);
-    color: var(--cds-tag-color-gray, #393939);
   }
 </style>

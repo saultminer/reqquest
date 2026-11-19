@@ -1115,6 +1115,11 @@ type ApplicationRequirement {
   blame: [String!]
 
   """
+  The same answers as `blame`, one entry per blame, with the specific form fields at fault and a helper message for them when the requirement named any. Null when `blame` is null.
+  """
+  blameFields: [RequirementBlame!]
+
+  """
   The configuration data for this requirement in the app request's period.
   """
   configurationData: JsonData
@@ -1899,6 +1904,50 @@ input ProgramFilters {
 }
 
 """
+A helper message a requirement attached to specific form fields of a prompt.
+"""
+type PromptFieldReason {
+  """
+  Dotted paths into the prompt's data naming the form fields the message belongs on.
+  """
+  fields: [String!]!
+
+  """
+  The message for those fields. When null, the statusReason of the enclosing entry applies.
+  """
+  message: String
+
+  """
+  How the message should be presented under those fields. Presentation only. When null, the status of the enclosing entry applies.
+  """
+  status: RequirementStatus
+}
+
+"""
+What one requirement currently has to say about one prompt: its status, its overall reason, and any messages aimed at individual form fields.
+"""
+type PromptStatusReason {
+  """
+  True when the requirement explicitly named this prompt in its blame. False when the requirement named nothing and the prompt is implicated only by belonging to it.
+  """
+  blamed: Boolean!
+
+  """
+  Messages aimed at individual form fields of this prompt. Empty when the requirement named no fields.
+  """
+  fieldReasons: [PromptFieldReason!]!
+
+  """
+  The title of the program whose application this requirement belongs to.
+  """
+  programName: String!
+  status: RequirementStatus!
+
+  """The requirement's overall reason for its status."""
+  statusReason: String
+}
+
+"""
 The visibility of a prompt on a request. This is used to determine whether the prompt should be shown to the user in the UI.
 """
 enum PromptVisibility {
@@ -1990,6 +2039,29 @@ type Query {
     """
     for: AppRequestIndexDestination
   ): [IndexCategory!]!
+}
+
+"""
+One answer a requirement holds responsible for its current status, optionally narrowed to specific form fields.
+"""
+type RequirementBlame {
+  """
+  Dotted paths into the prompt's data naming the form fields at fault. Null when the whole prompt is implicated.
+  """
+  fields: [String!]
+
+  """
+  A helper message for the named fields. When null, the requirement's statusReason applies.
+  """
+  message: String
+
+  """The key of the prompt whose answer is at fault."""
+  promptKey: String!
+
+  """
+  How the message on the named fields should be presented. It does not affect the requirement, whose own status decides its outcome. When null, the requirement's status applies.
+  """
+  status: RequirementStatus
 }
 
 """
@@ -2208,6 +2280,11 @@ type ValidatedAnnouncementResponse {
 type ValidatedAppRequestResponse {
   appRequest: AppRequest
   messages: [MutationMessage!]!
+
+  """
+  Returned by updatePrompt: what each requirement has to say about the prompt being updated. With validateOnly this reflects the unsaved answer, evaluated without being stored, so a form can show requirement feedback as the user types; otherwise it reflects what was just saved. Null from other mutations.
+  """
+  statusReasons: [PromptStatusReason!]
 
   """
   True if the mutation succeeded (e.g. saved data or passed validation), even if there were warnings.

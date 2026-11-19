@@ -72,6 +72,10 @@ export class ApplicationRequirementService extends AuthService<ApplicationRequir
     return await this.svc(ConfigurationService).getData(requirement.periodId, requirement.key)
   }
 
+  authorize (requirements: ApplicationRequirement[]) {
+    return this.removeUnauthorized(requirements)
+  }
+
   isOwn (requirement: ApplicationRequirement): boolean {
     return requirement.userInternalId === this.user?.internalId
   }
@@ -96,7 +100,7 @@ export class ApplicationRequirementService extends AuthService<ApplicationRequir
     if (redactStatus) {
       ret.status = RequirementStatus.PENDING
       ret.statusReason = undefined
-      ret.blame = undefined
+      ret.setBlame(undefined)
     }
     return ret
   }

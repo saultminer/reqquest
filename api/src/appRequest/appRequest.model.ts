@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon'
 import { Field, ID, InputType, Int, ObjectType, registerEnumType } from 'type-graphql'
-import { ApplicationRescindedStatus, ApplicationStatus, AppRequestActivityRow, AppRequestRow, AppRequestStatusDB, JsonData, PromptTagDefinition } from '../internal.js'
+import { ApplicationRescindedStatus, ApplicationStatus, AppRequestActivityRow, AppRequestRow, AppRequestStatusDB, JsonData, PromptTagDefinition, RequirementStatus } from '../internal.js'
 import { ValidatedResponse } from '@txstate-mws/graphql-server'
 
 export enum AppRequestStatus {
@@ -344,10 +344,43 @@ export class AppRequestFilter {
   userInternalIds?: number[]
 }
 
+@ObjectType({ description: 'A helper message a requirement attached to specific form fields of a prompt.' })
+export class PromptFieldReason {
+  @Field(type => [String], { description: 'Dotted paths into the prompt\'s data naming the form fields the message belongs on.' })
+  fields!: string[]
+
+  @Field({ nullable: true, description: 'The message for those fields. When null, the statusReason of the enclosing entry applies.' })
+  message?: string
+
+  @Field(type => RequirementStatus, { nullable: true, description: 'How the message should be presented under those fields. Presentation only. When null, the status of the enclosing entry applies.' })
+  status?: RequirementStatus
+}
+
+@ObjectType({ description: 'What one requirement currently has to say about one prompt: its status, its overall reason, and any messages aimed at individual form fields.' })
+export class PromptStatusReason {
+  @Field(type => RequirementStatus)
+  status!: RequirementStatus
+
+  @Field({ nullable: true, description: 'The requirement\'s overall reason for its status.' })
+  statusReason?: string
+
+  @Field({ description: 'The title of the program whose application this requirement belongs to.' })
+  programName!: string
+
+  @Field({ description: 'True when the requirement explicitly named this prompt in its blame. False when the requirement named nothing and the prompt is implicated only by belonging to it.' })
+  blamed!: boolean
+
+  @Field(type => [PromptFieldReason], { description: 'Messages aimed at individual form fields of this prompt. Empty when the requirement named no fields.' })
+  fieldReasons!: PromptFieldReason[]
+}
+
 @ObjectType()
 export class ValidatedAppRequestResponse extends ValidatedResponse {
   @Field(type => AppRequest, { nullable: true })
   appRequest?: AppRequest
+
+  @Field(type => [PromptStatusReason], { nullable: true, description: 'Returned by updatePrompt: what each requirement has to say about the prompt being updated. With validateOnly this reflects the unsaved answer, evaluated without being stored, so a form can show requirement feedback as the user types; otherwise it reflects what was just saved. Null from other mutations.' })
+  statusReasons?: PromptStatusReason[]
 }
 
 @ObjectType()

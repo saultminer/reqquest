@@ -1,5 +1,5 @@
 import { Field, ID, InputType, ObjectType, registerEnumType } from 'type-graphql'
-import { ApplicationPhase, ApplicationRequirementRow, AppRequestPhase, PeriodProgramKey, PeriodProgramRequirementRow, programRegistry, RequirementDefinitionProcessed, requirementRegistry, WorkflowStage } from '../internal.js'
+import { ApplicationPhase, ApplicationRequirementRow, AppRequestPhase, type BlameEntry, PeriodProgramKey, PeriodProgramRequirementRow, programRegistry, RequirementDefinitionProcessed, requirementRegistry, WorkflowStage } from '../internal.js'
 
 @ObjectType({ description: 'A requirement for a program. Each program has an ordered array of requirements, all of which must pass for an application to the program to succeed.' })
 export class Requirement {
@@ -71,6 +71,56 @@ registerEnumType(RequirementStatus, {
   }
 })
 
+@ObjectType({ description: 'One answer a requirement holds responsible for its current status, optionally narrowed to specific form fields.' })
+export class RequirementBlame {
+  @Field({ description: 'The key of the prompt whose answer is at fault.' })
+  promptKey!: string
+
+  @Field(type => [String], { nullable: true, description: 'Dotted paths into the prompt\'s data naming the form fields at fault. Null when the whole prompt is implicated.' })
+  fields?: string[]
+
+  @Field({ nullable: true, description: 'A helper message for the named fields. When null, the requirement\'s statusReason applies.' })
+  message?: string
+
+  @Field(type => RequirementStatus, { nullable: true, description: 'How the message on the named fields should be presented. It does not affect the requirement, whose own status decides its outcome. When null, the requirement\'s status applies.' })
+  status?: RequirementStatus
+}
+
+/**
+ * Turn whatever a `resolve` returned for `blame` (or what was stored) into the two shapes the model
+ * carries: the distinct prompt keys, and one detailed entry per blame.
+ */
+export function normalizeBlame (raw: BlameEntry[] | undefined | null): { blame?: string[], blameFields?: RequirementBlame[] } {
+  if (!Array.isArray(raw) || !raw.length) return {}
+  const blameFields: RequirementBlame[] = []
+  for (const entry of raw) {
+    if (typeof entry === 'string') blameFields.push({ promptKey: entry })
+    else if (entry != null && typeof entry.prompt === 'string') {
+      const fields = Array.isArray(entry.fields) ? entry.fields.filter(f => typeof f === 'string' && f.length) : []
+      blameFields.push({
+        promptKey: entry.prompt,
+        ...(fields.length ? { fields } : {}),
+        ...(typeof entry.message === 'string' && entry.message.length ? { message: entry.message } : {}),
+        ...(entry.status != null && entry.status in RequirementStatus ? { status: entry.status } : {})
+      })
+    }
+  }
+  if (!blameFields.length) return {}
+  return { blame: [...new Set(blameFields.map(b => b.promptKey))], blameFields }
+}
+
+/**
+ * The stored form of a requirement's blame. Entries that name no fields, message or status are
+ * written as bare prompt keys, so a requirement that only ever blamed whole prompts stores exactly
+ * what it always has.
+ */
+export function serializeBlame (blameFields: RequirementBlame[] | undefined): string | undefined {
+  if (!blameFields?.length) return undefined
+  return JSON.stringify(blameFields.map(b => b.fields?.length || b.message || b.status
+    ? { prompt: b.promptKey, ...(b.fields?.length ? { fields: b.fields } : {}), ...(b.message ? { message: b.message } : {}), ...(b.status ? { status: b.status } : {}) }
+    : b.promptKey))
+}
+
 @ObjectType({ description: 'The specific instance of a requirement on a particular application. Stores the status of the requirement, e.g. being satisfied or not.' })
 export class ApplicationRequirement extends Requirement {
   internalId: number
@@ -107,9 +157,15 @@ export class ApplicationRequirement extends Requirement {
     this.userInternalId = row.userId
     this.status = row.status
     this.statusReason = row.statusReason
-    this.blame = row.blame ? JSON.parse(row.blame) : undefined
+    this.setBlame(row.blame ? JSON.parse(row.blame) : undefined)
     this.workflowStageKey = row.workflowStage
     this.workflowStageDefinition = row.workflowStage ? programRegistry.workflowStagesByKey[row.workflowStage] : undefined
+  }
+
+  setBlame (raw: BlameEntry[] | undefined | null) {
+    const { blame, blameFields } = normalizeBlame(raw)
+    this.blame = blame
+    this.blameFields = blameFields
   }
 
   static clone (req: ApplicationRequirement) {
@@ -127,7 +183,7 @@ export class ApplicationRequirement extends Requirement {
       evaluationOrder: req.evaluationOrder,
       status: req.status,
       statusReason: req.statusReason,
-      blame: req.blame?.length ? JSON.stringify(req.blame) : undefined,
+      blame: serializeBlame(req.blameFields),
       workflowStage: req.workflowStageKey
     })
   }
@@ -143,6 +199,9 @@ export class ApplicationRequirement extends Requirement {
 
   @Field(type => [String], { nullable: true, description: 'The prompt keys the requirement named as responsible for its current status. Used to attach status indicators to the specific answers at fault instead of every prompt the requirement consults. Null when the requirement did not name any, in which case all of its prompts are implicated.' })
   blame?: string[]
+
+  @Field(type => [RequirementBlame], { nullable: true, description: 'The same answers as `blame`, one entry per blame, with the specific form fields at fault and a helper message for them when the requirement named any. Null when `blame` is null.' })
+  blameFields?: RequirementBlame[]
 }
 
 @InputType()

@@ -58,6 +58,12 @@ interface EvaluationContext {
    * read program context - then only programs with the same values for what it read reuse it.
    */
   resolveCache: Map<string, ResolveCacheEntry[][]>
+  /**
+   * true while previewing an unsaved answer (see `previewAppRequestEvaluation`). Nothing is persisted
+   * and a `resolve` that throws is treated as PENDING, since it may be looking at data that has not
+   * passed validation.
+   */
+  preview?: boolean
 }
 
 interface ResolveCacheEntry {
@@ -228,6 +234,43 @@ export async function evaluateAppRequest (appRequestInternalId: number, tdb?: Qu
 
   if (tdb) return await action(tdb)
   return await appRequestTransaction(appRequestInternalId, action)
+}
+
+/**
+ * Evaluate the appRequest as it would stand if `promptData` were saved as the answer to `promptKey`,
+ * without saving anything. This is what lets a form show a requirement's status, reason and blame
+ * while the user is still typing: the same `resolve` functions run through the same gating as a real
+ * evaluation, so what is shown cannot disagree with what a save would then store.
+ *
+ * One deliberate difference from a real evaluation: the prompt being edited counts as answered even
+ * if its validation has errors, so feedback can appear before the whole form is valid. Requirements
+ * therefore may see data that has not passed `validate`; one that throws is treated as PENDING.
+ *
+ * Returns the evaluated in-memory models, or undefined when the request is not open. They are
+ * throwaway copies - tagging, prompt locks, the request rollup and persistence are all skipped.
+ */
+export async function previewAppRequestEvaluation (appRequestInternalId: number, promptKey: string, promptData: any, db: Queryable) {
+  const ctx = await loadEvaluationContext(appRequestInternalId, db)
+  if (!ctx) return undefined
+  ctx.preview = true
+  ctx.data = { ...ctx.data, [promptKey]: promptData }
+
+  await markPromptsAnswered(ctx, db)
+  for (const prompt of ctx.prompts) {
+    if (prompt.key !== promptKey) continue
+    prompt.answered = true
+    // saving a prompt clears its own invalidation, so the preview assumes the same
+    prompt.invalidated = false
+  }
+
+  const acc: RequestAccumulators = {
+    promptsSeenInRequest: new Set(),
+    promptKeysLocked: new Set(),
+    reviewStartedApplicationIds: new Set()
+  }
+  for (const application of ctx.applications) evaluateApplication(ctx, application, acc)
+
+  return { applications: ctx.applications, requirements: ctx.requirements, prompts: ctx.prompts }
 }
 
 /**
@@ -492,7 +535,14 @@ function resolveRequirement (ctx: EvaluationContext, application: Application, r
   let hasUnanswered = false
   let resolveInfo: ResolveResult
 
-  const resolve = () => resolveWithCache(ctx, application, requirement, priorStatuses, requiredData)
+  const resolve = (): ResolveResult => {
+    if (!ctx.preview) return resolveWithCache(ctx, application, requirement, priorStatuses, requiredData)
+    try {
+      return resolveWithCache(ctx, application, requirement, priorStatuses, requiredData)
+    } catch {
+      return { status: RequirementStatus.PENDING }
+    }
+  }
   const markSeen = (prompt: RequirementPrompt) => {
     if (promptsAreMoot) return
     seen.application.add(prompt.key)
@@ -546,7 +596,7 @@ function resolveRequirement (ctx: EvaluationContext, application: Application, r
 
   requirement.status = resolveInfo!.status
   requirement.statusReason = resolveInfo!.reason
-  requirement.blame = resolveInfo!.blame?.length ? resolveInfo!.blame : undefined
+  requirement.setBlame(resolveInfo!.blame)
 
   return {
     disqualifying: requirement.status === RequirementStatus.DISQUALIFYING,

@@ -1,7 +1,7 @@
 import type { Queryable } from 'mysql2-async'
 import db from 'mysql2-async/db'
 import { groupby } from 'txstate-utils'
-import { Application, ApplicationRequirement, ApplicationRequirementFilter, bulkUpdateById, PeriodProgramRequirementFilters, PeriodProgramRequirementRow, PeriodProgramRequirement, RequirementStatus, requirementRegistry, RequirementType, ApplicationPhase, AppRequestPhase } from '../internal.js'
+import { Application, ApplicationRequirement, ApplicationRequirementFilter, bulkUpdateById, PeriodProgramRequirementFilters, PeriodProgramRequirementRow, PeriodProgramRequirement, RequirementStatus, requirementRegistry, RequirementType, ApplicationPhase, AppRequestPhase, serializeBlame } from '../internal.js'
 
 export interface ApplicationRequirementRow {
   id: number
@@ -18,7 +18,8 @@ export interface ApplicationRequirementRow {
   evaluationOrder: number
   status: RequirementStatus
   statusReason?: string
-  // JSON array of prompt keys as stored; the model parses it into ApplicationRequirement.blame
+  // JSON array as stored: prompt keys, or { prompt, fields?, message? } objects for entries that name fields or carry
+  // a message. The model parses it into ApplicationRequirement.blame and blameFields
   blame?: string
 }
 
@@ -135,7 +136,7 @@ export function requirementComputedRow (requirement: ApplicationRequirement) {
     id: requirement.internalId,
     status: requirement.status,
     statusReason: requirement.statusReason ?? null,
-    blame: requirement.blame?.length ? JSON.stringify(requirement.blame) : null
+    blame: serializeBlame(requirement.blameFields) ?? null
   }
 }
 

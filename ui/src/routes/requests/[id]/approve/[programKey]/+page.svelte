@@ -9,7 +9,7 @@
   import View from 'carbon-icons-svelte/lib/View.svelte'
   import { invalidateAll } from '$app/navigation'
   import { api, getApplicationStatusInfo, hasDisplayablePrompts, reviewerRequirementTypes } from '$internal'
-  import { CommentCard, enumPromptVisibility, enumRequirementStatus, enumRequirementType, InfoCard, PromptIndicators, type StatusReason } from '@reqquest/ui'
+  import { CommentCard, enumPromptVisibility, enumRequirementStatus, enumRequirementType, fieldReasonsForPrompt, InfoCard, PromptIndicators, type StatusReason } from '@reqquest/ui'
   import type { PageData } from './$types'
   import { uiRegistry } from '$local'
   import ApproveLayout from '../ApproveLayout.svelte'
@@ -143,7 +143,7 @@
         ? req.blame
         : req.prompts.filter(p => p.visibility !== enumPromptVisibility.UNREACHABLE).map(p => p.key)
       for (const key of faulted) {
-        (promptStatusReasons[key] ??= []).push({ status: req.status, statusReason: req.statusReason, programName: application.title, blamed: !!req.blame?.length })
+        (promptStatusReasons[key] ??= []).push({ status: req.status, statusReason: req.statusReason, programName: application.title, blamed: !!req.blame?.length, fieldReasons: fieldReasonsForPrompt(req.blameFields, key) })
         if (req.status === enumRequirementStatus.DISQUALIFYING && (promptIndicator[key]?.indicator ?? 0) < PromptIndicators.DISQUALIFYING) {
           promptIndicator[key] = { indicator: PromptIndicators.DISQUALIFYING, reason: req.statusReason ?? undefined }
         } else if (req.status === enumRequirementStatus.WARNING && (promptIndicator[key]?.indicator ?? 0) < PromptIndicators.WARNING) {

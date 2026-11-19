@@ -13,7 +13,7 @@
   import { get, type Writable } from 'svelte/store'
   import { goto, invalidate } from '$app/navigation'
   import type { ResolvedPathname } from '$app/types'
-  import { statusReasonsToFeedback, type StatusReason } from '@reqquest/ui'
+  import { statusReasonsToFeedback, statusReasonsToFieldFeedback, type StatusReason } from '@reqquest/ui'
   import { uiRegistry } from '$local'
   import { api } from '../api.js'
   import type { PageData } from '../../routes/requests/[id]/apply/[promptId]/$types.js'
@@ -25,7 +25,10 @@
   export let statusReasons: StatusReason[] = []
   $: ({ prompt, appRequest: appRequestForExport, dataVersion } = data)
   $: def = uiRegistry.getPrompt(prompt.key)
-  $: statusFeedback = statusReasonsToFeedback(statusReasons, { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(prompt.key, 'applicant') })
+  let liveStatusReasons: StatusReason[] | undefined
+  $: resetLiveStatusReasons(statusReasons)
+  $: currentStatusReasons = liveStatusReasons ?? statusReasons
+  $: statusFeedback = statusReasonsToFeedback(currentStatusReasons, { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(prompt.key, 'applicant') })
   const nextHref = getContext<Writable<{ nextHref: ResolvedPathname, prevHref: ResolvedPathname | undefined }>>('nextHref')
 
   let store: FormStore | undefined
@@ -40,18 +43,28 @@
     }
   }
 
+  function resetLiveStatusReasons (..._: any[]) {
+    liveStatusReasons = undefined
+  }
+
+  function fieldFeedback (reasons: StatusReason[] | undefined) {
+    return statusReasonsToFieldFeedback(reasons)
+  }
+
  async function onSubmit (data: any) {
-    const { success, messages, data: newData } =  await api.updatePrompt(prompt.id, data, false, dataVersion, await confirmInvalidatedOverride())
+    const { success, messages, data: newData, statusReasons: reasons } =  await api.updatePrompt(prompt.id, data, false, dataVersion, await confirmInvalidatedOverride())
+    if (reasons) liveStatusReasons = reasons
     return {
       success,
-      messages,
+      messages: [...messages, ...fieldFeedback(reasons)],
       data: newData[prompt.key]
     }
   }
 
   async function onValidate (data: any) {
-    const { messages } = await api.updatePrompt(prompt.id, data, true, dataVersion)
-    return messages
+    const { messages, statusReasons: reasons } = await api.updatePrompt(prompt.id, data, true, dataVersion)
+    if (reasons) liveStatusReasons = reasons
+    return [...messages, ...fieldFeedback(reasons)]
   }
 
   async function onSaved () {
@@ -84,6 +97,7 @@
   $: if (prompt.id !== lastPromptId) {
     lastPromptId = prompt.id
     store = undefined
+    liveStatusReasons = undefined
   }
 </script>
 
@@ -102,7 +116,7 @@
     </div>
   {:else}
   <Form class={def.applicantPromptPage?.formClass ?? uiRegistry.config.applicantPromptPage?.formClass} bind:store hideFallbackMessage unsavedWarning submit={onSubmit} validate={onValidate} preloadAsDraft={!prompt.hasSavedData} preload={prompt.preloadData} on:saved={onSaved} let:data>
-    <svelte:component this={def.formComponent} {data} appRequestId={appRequestForExport.id} appRequestData={appRequestForExport.data} prestageData={{latest: prompt.prestageData, current: appRequestForExport.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData}  invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} {statusReasons} />
+    <svelte:component this={def.formComponent} {data} appRequestId={appRequestForExport.id} appRequestData={appRequestForExport.data} prestageData={{latest: prompt.prestageData, current: appRequestForExport.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData}  invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} statusReasons={currentStatusReasons} />
     {#if statusFeedback.length}
       <div class={def.applicantPromptPage?.statusReasonInlineNotificationClass ?? uiRegistry.config.applicantPromptPage?.statusReasonInlineNotificationClass}>
         {#each statusFeedback as message}

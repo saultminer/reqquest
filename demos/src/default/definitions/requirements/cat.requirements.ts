@@ -13,7 +13,15 @@ export const cat_tower_req: RequirementDefinition = {
     if (catTowerData?.haveCatTower == null) return { status: RequirementStatus.PENDING }
     if (catTowerData.haveCatTower) return { status: RequirementStatus.MET }
     if (catTowerData.willPurchaseCatTower == null) return { status: RequirementStatus.PENDING }
-    return catTowerData.willPurchaseCatTower ? { status: RequirementStatus.MET } : { status: RequirementStatus.DISQUALIFYING, reason: 'Must own a cat tower or be willing to purchase one.' }
+    if (catTowerData.willPurchaseCatTower) return { status: RequirementStatus.MET }
+    return {
+      status: RequirementStatus.DISQUALIFYING,
+      reason: 'Must own a cat tower or be willing to purchase one.',
+      blame: [
+        { prompt: 'have_a_cat_tower_prompt', fields: ['haveCatTower'], message: 'Adopting a cat requires a cat tower.', status: RequirementStatus.WARNING },
+        { prompt: 'have_a_cat_tower_prompt', fields: ['willPurchaseCatTower'], message: 'Without a cat tower, you must agree to purchase one.' }
+      ]
+    }
   }
 }
 

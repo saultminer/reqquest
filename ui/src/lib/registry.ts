@@ -247,6 +247,9 @@ export interface PromptDefinition {
    * PENDING), then the global `UIConfig.statusReasonNotifications`, then this value - each layer changes only
    * what it names. Set false to render nothing here and handle the `statusReasons` prop inside your own form
    * component instead.
+   *
+   * This governs only that below-form notification of a requirement's overall reason. Messages a requirement
+   * aims at individual form fields (`blame` entries with `fields`) are shown under those inputs regardless.
    */
   statusReasonNotifications?: StatusReasonNotificationConfig
 }
@@ -395,6 +398,9 @@ export interface UIConfig<PK extends string = PromptKey, RK extends string = Req
    * `{ PENDING: { reviewer: true } }` changes only what it names on top of the built-in default (everything
    * except PENDING). A prompt's own value then overrides this one, per status and per audience. Set false to
    * render nothing anywhere and handle the `statusReasons` prop inside your own form components.
+   *
+   * This governs only that below-form notification of a requirement's overall reason. Messages a requirement
+   * aims at individual form fields (`blame` entries with `fields`) are shown under those inputs regardless.
    */
   statusReasonNotifications?: StatusReasonNotificationConfig
 

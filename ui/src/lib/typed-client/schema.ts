@@ -468,6 +468,8 @@ export interface ApplicationRequirement {
     application: Application
     /** The prompt keys the requirement named as responsible for its current status. Used to attach status indicators to the specific answers at fault instead of every prompt the requirement consults. Null when the requirement did not name any, in which case all of its prompts are implicated. */
     blame: (Scalars['String'][] | null)
+    /** The same answers as `blame`, one entry per blame, with the specific form fields at fault and a helper message for them when the requirement named any. Null when `blame` is null. */
+    blameFields: (RequirementBlame[] | null)
     /** The configuration data for this requirement in the app request's period. */
     configurationData: (Scalars['JsonData'] | null)
     /** An internal description of the requirement. Probably not shown to users. */
@@ -814,6 +816,33 @@ export interface Program {
 }
 
 
+/** A helper message a requirement attached to specific form fields of a prompt. */
+export interface PromptFieldReason {
+    /** Dotted paths into the prompt's data naming the form fields the message belongs on. */
+    fields: Scalars['String'][]
+    /** The message for those fields. When null, the statusReason of the enclosing entry applies. */
+    message: (Scalars['String'] | null)
+    /** How the message should be presented under those fields. Presentation only. When null, the status of the enclosing entry applies. */
+    status: (RequirementStatus | null)
+    __typename: 'PromptFieldReason'
+}
+
+
+/** What one requirement currently has to say about one prompt: its status, its overall reason, and any messages aimed at individual form fields. */
+export interface PromptStatusReason {
+    /** True when the requirement explicitly named this prompt in its blame. False when the requirement named nothing and the prompt is implicated only by belonging to it. */
+    blamed: Scalars['Boolean']
+    /** Messages aimed at individual form fields of this prompt. Empty when the requirement named no fields. */
+    fieldReasons: PromptFieldReason[]
+    /** The title of the program whose application this requirement belongs to. */
+    programName: Scalars['String']
+    status: RequirementStatus
+    /** The requirement's overall reason for its status. */
+    statusReason: (Scalars['String'] | null)
+    __typename: 'PromptStatusReason'
+}
+
+
 /** The visibility of a prompt on a request. This is used to determine whether the prompt should be shown to the user in the UI. */
 export type PromptVisibility = 'APPLICATION_DUPE' | 'AVAILABLE' | 'REQUEST_DUPE' | 'UNREACHABLE'
 
@@ -850,6 +879,20 @@ export interface Query {
     scopes: Scalars['String'][]
     userIndexes: IndexCategory[]
     __typename: 'Query'
+}
+
+
+/** One answer a requirement holds responsible for its current status, optionally narrowed to specific form fields. */
+export interface RequirementBlame {
+    /** Dotted paths into the prompt's data naming the form fields at fault. Null when the whole prompt is implicated. */
+    fields: (Scalars['String'][] | null)
+    /** A helper message for the named fields. When null, the requirement's statusReason applies. */
+    message: (Scalars['String'] | null)
+    /** The key of the prompt whose answer is at fault. */
+    promptKey: Scalars['String']
+    /** How the message on the named fields should be presented. It does not affect the requirement, whose own status decides its outcome. When null, the requirement's status applies. */
+    status: (RequirementStatus | null)
+    __typename: 'RequirementBlame'
 }
 
 
@@ -925,6 +968,8 @@ export interface ValidatedAnnouncementResponse {
 export interface ValidatedAppRequestResponse {
     appRequest: (AppRequest | null)
     messages: MutationMessage[]
+    /** Returned by updatePrompt: what each requirement has to say about the prompt being updated. With validateOnly this reflects the unsaved answer, evaluated without being stored, so a form can show requirement feedback as the user types; otherwise it reflects what was just saved. Null from other mutations. */
+    statusReasons: (PromptStatusReason[] | null)
     /** True if the mutation succeeded (e.g. saved data or passed validation), even if there were warnings. */
     success: Scalars['Boolean']
     __typename: 'ValidatedAppRequestResponse'
@@ -1495,7 +1540,9 @@ export interface ApplicationGenqlSelection{
 
 export interface ApplicationActionsGenqlSelection{
     advanceWorkflow?: boolean | number
+    /** True when the current user may mark this program complete: the appRequest is in non-blocking workflow and none of the application's non-blocking requirements are PENDING. */
     completeApplication?: boolean | number
+    /** True when the current user may reopen this program after it was marked complete, to edit its non-blocking workflow again. */
     reopenApplication?: boolean | number
     rescindApplication?: boolean | number
     restoreApplication?: boolean | number
@@ -1560,6 +1607,8 @@ export interface ApplicationRequirementGenqlSelection{
     application?: ApplicationGenqlSelection
     /** The prompt keys the requirement named as responsible for its current status. Used to attach status indicators to the specific answers at fault instead of every prompt the requirement consults. Null when the requirement did not name any, in which case all of its prompts are implicated. */
     blame?: boolean | number
+    /** The same answers as `blame`, one entry per blame, with the specific form fields at fault and a helper message for them when the requirement named any. Null when `blame` is null. */
+    blameFields?: RequirementBlameGenqlSelection
     /** The configuration data for this requirement in the app request's period. */
     configurationData?: boolean | number
     /** An internal description of the requirement. Probably not shown to users. */
@@ -1993,6 +2042,35 @@ export interface ProgramGenqlSelection{
 
 export interface ProgramFilters {keys?: (Scalars['String'][] | null)}
 
+
+/** A helper message a requirement attached to specific form fields of a prompt. */
+export interface PromptFieldReasonGenqlSelection{
+    /** Dotted paths into the prompt's data naming the form fields the message belongs on. */
+    fields?: boolean | number
+    /** The message for those fields. When null, the statusReason of the enclosing entry applies. */
+    message?: boolean | number
+    /** How the message should be presented under those fields. Presentation only. When null, the status of the enclosing entry applies. */
+    status?: boolean | number
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+
+/** What one requirement currently has to say about one prompt: its status, its overall reason, and any messages aimed at individual form fields. */
+export interface PromptStatusReasonGenqlSelection{
+    /** True when the requirement explicitly named this prompt in its blame. False when the requirement named nothing and the prompt is implicated only by belonging to it. */
+    blamed?: boolean | number
+    /** Messages aimed at individual form fields of this prompt. Empty when the requirement named no fields. */
+    fieldReasons?: PromptFieldReasonGenqlSelection
+    /** The title of the program whose application this requirement belongs to. */
+    programName?: boolean | number
+    status?: boolean | number
+    /** The requirement's overall reason for its status. */
+    statusReason?: boolean | number
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
 export interface QueryGenqlSelection{
     /**
      * 
@@ -2031,6 +2109,21 @@ export interface QueryGenqlSelection{
     userIndexes?: (IndexCategoryGenqlSelection & { __args?: {
     /** Returns indexes that are flagged to appear in this destination. Also sorts for this destination. */
     for?: (AppRequestIndexDestination | null)} })
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+
+/** One answer a requirement holds responsible for its current status, optionally narrowed to specific form fields. */
+export interface RequirementBlameGenqlSelection{
+    /** Dotted paths into the prompt's data naming the form fields at fault. Null when the whole prompt is implicated. */
+    fields?: boolean | number
+    /** A helper message for the named fields. When null, the requirement's statusReason applies. */
+    message?: boolean | number
+    /** The key of the prompt whose answer is at fault. */
+    promptKey?: boolean | number
+    /** How the message on the named fields should be presented. It does not affect the requirement, whose own status decides its outcome. When null, the requirement's status applies. */
+    status?: boolean | number
     __typename?: boolean | number
     __scalar?: boolean | number
 }
@@ -2122,6 +2215,8 @@ export interface ValidatedAnnouncementResponseGenqlSelection{
 export interface ValidatedAppRequestResponseGenqlSelection{
     appRequest?: AppRequestGenqlSelection
     messages?: MutationMessageGenqlSelection
+    /** Returned by updatePrompt: what each requirement has to say about the prompt being updated. With validateOnly this reflects the unsaved answer, evaluated without being stored, so a form can show requirement feedback as the user types; otherwise it reflects what was just saved. Null from other mutations. */
+    statusReasons?: PromptStatusReasonGenqlSelection
     /** True if the mutation succeeded (e.g. saved data or passed validation), even if there were warnings. */
     success?: boolean | number
     __typename?: boolean | number
@@ -2533,10 +2628,34 @@ export interface ValidatedResponseGenqlSelection{
     
 
 
+    const PromptFieldReason_possibleTypes: string[] = ['PromptFieldReason']
+    export const isPromptFieldReason = (obj?: { __typename?: any } | null): obj is PromptFieldReason => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isPromptFieldReason"')
+      return PromptFieldReason_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const PromptStatusReason_possibleTypes: string[] = ['PromptStatusReason']
+    export const isPromptStatusReason = (obj?: { __typename?: any } | null): obj is PromptStatusReason => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isPromptStatusReason"')
+      return PromptStatusReason_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
     const Query_possibleTypes: string[] = ['Query']
     export const isQuery = (obj?: { __typename?: any } | null): obj is Query => {
       if (!obj?.__typename) throw new Error('__typename is missing in "isQuery"')
       return Query_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const RequirementBlame_possibleTypes: string[] = ['RequirementBlame']
+    export const isRequirementBlame = (obj?: { __typename?: any } | null): obj is RequirementBlame => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isRequirementBlame"')
+      return RequirementBlame_possibleTypes.includes(obj.__typename)
     }
     
 

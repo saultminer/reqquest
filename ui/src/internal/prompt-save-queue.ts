@@ -1,9 +1,12 @@
 import { type FormStore, type Feedback, type SubmitResponse } from '@txstate-mws/svelte-forms'
 import { get } from 'svelte/store'
+import type { StatusReason } from '@reqquest/ui'
 
 /** What api.updatePrompt gives back: the usual form response plus the appRequest's version after the write. */
 export interface PromptSaveResponse extends SubmitResponse<any> {
   dataVersion?: number
+  /** what each requirement says about the saved prompt; absent on a response the queue made up itself */
+  statusReasons?: StatusReason[]
 }
 
 /**

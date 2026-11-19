@@ -25,6 +25,13 @@ export interface StatusReason {
   programName: string
   // true when the requirement's `blame` explicitly named this prompt
   blamed: boolean
+  fieldReasons?: StatusFieldReason[]
+}
+
+export interface StatusFieldReason {
+  fields: string[]
+  message?: string | null
+  status?: string | null
 }
 
 export interface PromptSection {

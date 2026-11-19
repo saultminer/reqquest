@@ -74,7 +74,7 @@ Both members of the pair are mounted with `<svelte:component>`, so they are unty
 | `gatheredConfigData` | yes | yes | configuration gathered from related definitions. |
 | `invalidated` / `invalidatedReason` | yes | yes | set when a reviewer sent the prompt back for correction. |
 | `appRequestId` | **sometimes** | yes | present on the applicant page, the opt-out modal, the display path, and the `formMode: 'full'` modal - but **not** on the reviewer's inline edit form. Guard it, or register `formMode: 'full'` if you truly need it. |
-| `statusReasons` | yes | yes | `{ status, statusReason, programName, blamed }[]` - every requirement status and reason aimed at this prompt, across programs. `blamed` is true when the requirement's `resolve` named this prompt in `blame` (it may be a requirement other than this prompt's own, e.g. a reviewer requirement blaming an applicant answer); false when it named no prompt and the entry is the fallback attached to all of that requirement's prompts. The framework already renders the **blamed** entries below every edit form as inline notifications (see `statusReasonNotifications` below), so a form component normally needs nothing. Display components receive the same list and render nothing by default; call `statusReasonsToFeedback(statusReasons, { blamedOnly, statuses })` from `@reqquest/ui` to get `Feedback` objects for `FormInlineNotification`, passing `uiRegistry.statusReasonNotificationStatuses(key, 'applicant' | 'reviewer')` as `statuses` to follow the project's `statusReasonNotifications` configuration. Applicants get an empty list for reviewer-phase requirements the API redacts. |
+| `statusReasons` | yes | yes | `{ status, statusReason, programName, blamed, fieldReasons? }[]` - every requirement status and reason aimed at this prompt, across programs. `blamed` is true when the requirement's `resolve` named this prompt in `blame` (it may be a requirement other than this prompt's own, e.g. a reviewer requirement blaming an applicant answer); false when it named no prompt and the entry is the fallback attached to all of that requirement's prompts. The framework already renders the **blamed** entries below every edit form as inline notifications (see `statusReasonNotifications` below), so a form component normally needs nothing. Display components receive the same list and render nothing by default; call `statusReasonsToFeedback(statusReasons, { blamedOnly, statuses })` from `@reqquest/ui` to get `Feedback` objects for `FormInlineNotification`, passing `uiRegistry.statusReasonNotificationStatuses(key, 'applicant' | 'reviewer')` as `statuses` to follow the project's `statusReasonNotifications` configuration. `fieldReasons` is `{ fields, message?, status? }[]`: helper messages the requirement aimed at individual form fields (`fields` are dotted paths into this prompt's data), each falling back to the entry's `statusReason` and `status` when it gives none. Edit forms already show these underneath the matching inputs, as the user types and again after saving, so a form component needs nothing; in a form the list reflects the answer currently being edited, not only the saved one. A display component can call `statusReasonsToFieldFeedback(statusReasons)` to get one `Feedback` per field with its `path` set. Applicants get an empty list for reviewer-phase requirements the API redacts. |
 
 `prestageData` has a trap worth knowing before you hit it. Read the **prop**, not the mutation:
 
@@ -199,6 +199,17 @@ export const uiRegistry = new UIRegistry(config)
   instead. `statusReasonsToFeedback(statusReasons, { blamedOnly, statuses })` from `@reqquest/ui`
   applies the same filters; pass `uiRegistry.statusReasonNotificationStatuses(key, audience)` as
   `statuses` if a display component should follow the project's configuration.
+
+  This setting applies **only** to that below-form notification. The **per-field** messages a
+  requirement attaches through `blame` (`{ prompt, fields, message, status }` on the API side) are
+  not subject to it and always show, PENDING included: a requirement that wrote a message for a
+  field means it to be seen. Those are delivered with the form's validation messages, so svelte-forms
+  shows them under the matching `Field*` inputs with no work in the component, and they update on
+  every validation pass - before the answer is saved - as well as after a save. A field message is
+  styled by its own `status` when the requirement gave it one, otherwise by the requirement's
+  status; that status is presentation only and never changes the requirement's outcome. An
+  error-styled field message does not block saving. A `fields` path that matches no input in the
+  form is not shown inline.
 
 ### Keys, and how they stay honest
 

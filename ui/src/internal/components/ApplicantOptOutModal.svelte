@@ -6,7 +6,7 @@
   import { api, type PromptForEditing } from '../api.js'
   import { Loading } from "carbon-components-svelte";
   import MissingDefinitionNotification from './MissingDefinitionNotification.svelte'
-  import type { AppRequestForDetails, OptOutApplication } from '@reqquest/ui'
+  import { statusReasonsToFieldFeedback, type AppRequestForDetails, type OptOutApplication, type StatusReason } from '@reqquest/ui'
 
   export let open = false
   export let optIn = false
@@ -16,6 +16,13 @@
 
   $: def = uiRegistry.getPrompt(prompt.key)
   let loading = false
+  // from the latest validate/submit response; stands in for the saved reasons while the user edits
+  let liveStatusReasons: StatusReason[] | undefined
+
+  // statusReasonNotifications only governs the notification below a form
+  function fieldFeedback (reasons: StatusReason[] | undefined) {
+    return statusReasonsToFieldFeedback(reasons)
+  }
 
 
   let store: FormStore | undefined
@@ -23,9 +30,10 @@
   async function submit (data: any) {
     loading = true
     try {      
-      const { success, messages, data: newData } = await api.updatePrompt(prompt.id, data, false)
+      const { success, messages, data: newData, statusReasons: reasons } = await api.updatePrompt(prompt.id, data, false)
       if (!success) loading = false
-      return { success, messages, data: newData?.[prompt.key] }
+      if (reasons) liveStatusReasons = reasons
+      return { success, messages: [...messages, ...fieldFeedback(reasons)], data: newData?.[prompt.key] }
     } catch (e) {
       loading = false
       throw e
@@ -39,14 +47,16 @@
   }
 
   async function onValidate (data: any) {
-    const { messages } = await api.updatePrompt(prompt.id, data, true)
-    return messages
+    const { messages, statusReasons: reasons } = await api.updatePrompt(prompt.id, data, true)
+    if (reasons) liveStatusReasons = reasons
+    return [...messages, ...fieldFeedback(reasons)]
   }
 
   let lastPromptId: string | undefined
   $: if (prompt.id !== lastPromptId) {
     lastPromptId = prompt.id
     store = undefined
+    liveStatusReasons = undefined
   }
 </script>
 
@@ -73,6 +83,6 @@
     {#if def?.formComponent == null}
       <MissingDefinitionNotification kind="prompt" definitionKey={prompt.key} />
     {:else}
-    <svelte:component this={def.formComponent} {data} appRequestId={appRequest.id} appRequestData={appRequest.data} prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData} invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} statusReasons={optOutSelected?.prompt.statusReasons ?? []} />
+    <svelte:component this={def.formComponent} {data} appRequestId={appRequest.id} appRequestData={appRequest.data} prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData} invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} statusReasons={liveStatusReasons ?? optOutSelected?.prompt.statusReasons ?? []} />
     {/if}
 </PanelFormDialog>

@@ -398,7 +398,15 @@ with a status (see ApplicationRequirement Statuses below) and a statusReason (a 
 or two describing why the requirement was marked the way that it was, especially when it
 is marked as disqualifying). It may also return `blame`, a list of the prompt keys whose
 answers are responsible for that status, which lets the reviewer interface mark those specific
-questions instead of every question the requirement looked at. The developer is responsible for
+questions instead of every question the requirement looked at. A `blame` entry can go further and
+name individual form fields, with a helper message and a display status of their own:
+`{ prompt: 'household_prompt', fields: ['income'], message: 'Income is over the limit.', status: RequirementStatus.WARNING }`.
+The statusReason remains the one overall explanation and the requirement's status alone decides
+its outcome; the entries only say what to show under which inputs. Forms show these messages as
+the user types, before saving, because each validation pass evaluates the unsaved answer against
+the same requirement logic without storing the result - which also means a requirement may be
+handed an answer that has not passed its prompt's validation yet, and should answer PENDING for
+anything missing or malformed. The developer is responsible for
 writing javascript code that implements a Requirement's logic.
 
 As long as the requirement is still pending, ReqQuest will continue collecting the next prompt

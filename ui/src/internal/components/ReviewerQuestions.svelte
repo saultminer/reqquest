@@ -4,7 +4,7 @@
   import WarningFilled from 'carbon-icons-svelte/lib/WarningFilled.svelte'
   import Edit from 'carbon-icons-svelte/lib/Edit.svelte'
   import SidePanelOpenFilled from 'carbon-icons-svelte/lib/SidePanelOpenFilled.svelte'
-  import { enumRequirementStatus, enumRequirementType, PromptIndicators, statusReasonsToFeedback, translateMutations, type PhaseChangeMutations, type StatusReason } from '@reqquest/ui'
+  import { enumRequirementStatus, enumRequirementType, PromptIndicators, statusReasonsToFeedback, statusReasonsToFieldFeedback, translateMutations, type PhaseChangeMutations, type StatusReason } from '@reqquest/ui'
   import { isInlineReviewerEditPrompt, isDisplayablePrompt, hasDisplayablePrompts, RenderDisplayComponent, applicantRequirementTypes, reviewerRequirementTypes, api, PromptSaveQueue, type BasicRequestData } from '$internal'
   import { FormInlineNotification, Panel, PanelFormDialog, TagSet } from '@txstate-mws/carbon-svelte'
   import { Tooltip } from 'carbon-components-svelte'
@@ -27,6 +27,9 @@
   export let lastStageKey: string | undefined = undefined
   export let promptIndicator: Record<string, any>
   export let promptStatusReasons: Record<string, StatusReason[]> = {}
+  let liveStatusReasons: Record<string, StatusReason[]> = {}
+  $: resetLiveStatusReasons(promptStatusReasons)
+  $: currentStatusReasons = { ...promptStatusReasons, ...liveStatusReasons }
   export let loading = false
   export let appRequest: PageData['appRequest']
   export let application: PageData['appRequest']['applications'][0]
@@ -93,6 +96,15 @@
     promptBeingEdited = undefined
     editingViaReviewDialog = false
   }
+  function resetLiveStatusReasons (..._: any[]) {
+    liveStatusReasons = {}
+  }
+
+  function withFieldFeedback<M> (prompt: { key: string }, messages: M[], reasons: StatusReason[] | undefined) {
+    if (reasons) liveStatusReasons = { ...liveStatusReasons, [prompt.key]: reasons }
+    return [...messages, ...statusReasonsToFieldFeedback(reasons)]
+  }
+
   function onPromptSubmit (prompt: any, modal = false) {
     return async (data: any) => {
       if (modal) { loading = true; hideEditModalPrompt() }
@@ -108,7 +120,7 @@
         if (modal && !response.success) { loading = false; showEditModalPrompt() }
         // prev resp.data was replacing the store's data with a wrongly-shaped object and
         // re-baselines beforeUserChanges to it. Reduce to this prompt's slice like ApplicantPromptPage.onSubmit
-        return { ...response, data: response.data?.[prompt.key] }
+        return { ...response, messages: withFieldFeedback(prompt, response.messages, response.statusReasons), data: response.data?.[prompt.key] }
       } catch (e) {
         if (modal) { loading = false; showEditModalPrompt() }
         throw e
@@ -119,7 +131,7 @@
   function onPromptValidate (prompt: any) {
     return async (data: any) => {
       const response = await api.updatePrompt(prompt.id, data, true, prompt.dataVersion)
-      return response.messages
+      return withFieldFeedback(prompt, response.messages, response.statusReasons)
     }
   }
 
@@ -356,8 +368,8 @@
             <dd class="flow" class:small class:large class:isReviewerQuestion class:disabled={disabled} class:bg-tagyellow-200={isAutomation} role={editMode ? 'group' : undefined} aria-labelledby={dtid}>
               {#if editMode}
                 <Form bind:store={saveQueue.stores[prompt.id]} preload={prompt.preloadData} submit={onPromptSubmit(prompt)} validate={onPromptValidate(prompt)} autoSave on:autosaved={onPromptAutoSaved} let:data let:messages>
-                    <svelte:component this={def?.formComponent} {data} appRequestData={appRequest.data} prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData}  invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} statusReasons={promptStatusReasons[prompt.key] ?? []} />
-                    {#each statusReasonsToFeedback(promptStatusReasons[prompt.key], { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(prompt.key, 'reviewer') }) as message}
+                    <svelte:component this={def?.formComponent} {data} appRequestData={appRequest.data} prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}} fetched={prompt.fetchedData} configData={prompt.configurationData} gatheredConfigData={prompt.gatheredConfigData}  invalidated={prompt.invalidated} invalidatedReason={prompt.invalidatedReason} statusReasons={currentStatusReasons[prompt.key] ?? []} />
+                    {#each statusReasonsToFeedback(currentStatusReasons[prompt.key], { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(prompt.key, 'reviewer') }) as message}
                       <FormInlineNotification {message} />
                     {/each}
                     {#each messages as message (message.message, message.type)}
@@ -374,7 +386,7 @@
                     prestageData={{latest: prompt.prestageData, current: appRequest.data[prompt.key]?.__prestage}}
                     configData={prompt.configurationData}
                     gatheredConfigData={prompt.gatheredConfigData}
-                    statusReasons={promptStatusReasons[prompt.key] ?? []}
+                    statusReasons={currentStatusReasons[prompt.key] ?? []}
                     showInlineReviewNotification={prompt.actions.update && prompt.invalidated && !applicantRequirementTypes.has(requirement.type)} />
                 </div>
                 {#if !large}
@@ -449,9 +461,9 @@
         gatheredConfigData={editingPromptWithData.gatheredConfigData}
         invalidated={editingPromptWithData.invalidated}
         invalidatedReason={editingPromptWithData.invalidatedReason}
-        statusReasons={promptStatusReasons[editingPromptWithData.key] ?? []}
+        statusReasons={currentStatusReasons[editingPromptWithData.key] ?? []}
       />
-      {#each statusReasonsToFeedback(promptStatusReasons[editingPromptWithData.key], { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(editingPromptWithData.key, 'reviewer') }) as message}
+      {#each statusReasonsToFeedback(currentStatusReasons[editingPromptWithData.key], { blamedOnly: true, statuses: uiRegistry.statusReasonNotificationStatuses(editingPromptWithData.key, 'reviewer') }) as message}
         <FormInlineNotification {message} />
       {/each}
       {/if}

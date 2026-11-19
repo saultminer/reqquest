@@ -68,7 +68,24 @@ export interface ProgramContext {
  */
 export type ProgramSelector = <K extends keyof ProgramContext>(select: { [P in K]: true }) => Pick<ProgramContext, K>
 
-export type ResolveResult = { status: RequirementStatus, reason?: string, blame?: PromptKey[] }
+/**
+ * One answer a requirement holds responsible for its status. A bare prompt key blames the whole
+ * prompt. The object form can narrow that to specific form fields and give them their own helper
+ * message:
+ *
+ * - `fields` are dotted paths into the prompt's data, the same paths a `MutationMessage` uses for
+ *   `arg`, so the UI can show the message underneath those inputs.
+ * - `message` is shown on those fields. Leave it off and the result's overall `reason` is used.
+ * - `status` only changes how that message looks under the field (DISQUALIFYING as an error, WARNING
+ *   as a warning, PENDING as information, MET as success). It never affects the requirement: the
+ *   result's own `status` alone decides that. Leave it off and the message takes the result's status.
+ *
+ * A result may carry several entries, including several for the same prompt, so every field at
+ * fault can be flagged at once, each with its own message.
+ */
+export type BlameEntry = PromptKey | { prompt: PromptKey, fields?: string[], message?: string, status?: RequirementStatus }
+
+export type ResolveResult = { status: RequirementStatus, reason?: string, blame?: BlameEntry[] }
 
 export interface RequirementDefinition<ConfigurationDataType = any> {
   /**
@@ -202,6 +219,20 @@ export interface RequirementDefinition<ConfigurationDataType = any> {
    * The keys are checked at compile time against the prompts your project registers, so a typo or a
    * key you have since renamed will not compile. Nothing is filtered at runtime, though: a key
    * naming a prompt the viewer cannot currently see simply has no effect.
+   *
+   * A blame entry may also be an object, `{ prompt, fields, message, status }`, naming the form
+   * fields at fault, a helper message to show on them and how that message should look (see
+   * `BlameEntry`). An entry's `status` is presentation only. `reason` remains the single
+   * overall explanation for the status. A `resolve` that returns at its first failed rule can only
+   * ever flag that one rule; to flag several fields together, test those rules before returning and
+   * hand back all of their entries in one result.
+   *
+   * This function also runs while the user is still typing: each time a form validates, it is
+   * called with the unsaved answer so the same status, reason and blame can be shown immediately.
+   * Nothing from those calls is stored. In them the prompt being edited is passed in even if it
+   * still has validation errors, so do not assume its data has passed `validate` - treat missing
+   * or malformed values as PENDING. If the function throws during such a call the error is
+   * swallowed and no feedback is shown; during a real evaluation it still propagates.
    *
    * These values will be cached until the appRequest is updated in some way.
    *

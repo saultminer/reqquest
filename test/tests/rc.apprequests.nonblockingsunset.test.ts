@@ -29,6 +29,7 @@ const optOutPromptKeys = ['project_management_opt_out_prompt', 'application_mana
 const applicantAnswers = new Map<string, Map<string, any>>([
   ['pre_qual_prompt', new Map([['pass', { gpa: 3.5, availability: true, acknowledgeExpectations: true }]])],
   ['pre_qual_user_info_prompt', new Map([['pass', { correct: true }]])],
+  ['future_communication_opt_in_prompt', new Map([['pass', { optIn: true }]])],
   ['data_related_puzzle_prompt', new Map([['pass', { puzzleAnswer: 'Join the two tables on the shared key.' }]])],
   ['outside_class_example_prompt', new Map([['pass', { outsideClassExample: true, description: 'Built a scheduling app for a student club.' }]])],
   ['critical_thinking_prompt', new Map([['pass', { criticalThinkingAnswer: 'Profile first, then optimize the slowest query.' }]])],

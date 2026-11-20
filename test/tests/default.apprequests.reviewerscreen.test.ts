@@ -6,7 +6,8 @@ import { promptMapApplicantQualified } from './default.promptdata.js'
  * The reviewer screen groups an application's requirements into panels. Without a layout the panels are
  * type-based; the default demo's cat program declares one custom panel ("Other cats in the home") that
  * pairs the applicant's other-cats answer with the reviewer's vaccine check, and leaves
- * `applicant_seems_nice_req` unplaced so it falls into the trailing "Reviewer Questions" panel.
+ * `applicant_seems_nice_req` unplaced so it falls into the trailing "Reviewer Questions" panel. Every program's
+ * page then ends with the "Complete program review" panel, which is not a requirement section.
  */
 test.describe.serial('Reviewer screen panels follow the program\'s reviewSections', { tag: '@default' }, () => {
   const timeZone = 'America/Chicago'
@@ -96,7 +97,12 @@ test.describe.serial('Reviewer screen panels follow the program\'s reviewSection
     const panels = reviewerPage.locator('.panel')
     await expect(panels.first()).toBeVisible()
     const titles = await panels.locator('.panel-title').allInnerTexts()
-    expect(titles.map(t => t.trim())).toEqual(['General Questions', 'Adopt a Cat', 'Other cats in the home', 'Reviewer Questions'])
+    expect(titles.map(t => t.trim())).toEqual(['General Questions', 'Adopt a Cat', 'Other cats in the home', 'Reviewer Questions', 'Complete program review'])
+
+    // the completion panel trails every program; with reviewer questions unanswered it cannot be completed yet
+    const completionPanel = panels.filter({ has: reviewerPage.locator('.panel-header', { hasText: 'Complete program review' }) })
+    await expect(completionPanel.locator('.completion-status.notready')).toBeVisible()
+    await expect(completionPanel.getByRole('button', { name: 'Complete review', exact: true })).toBeDisabled()
 
     // the applicant's other-cats answer left the program panel for the custom one...
     const customPanel = panels.filter({ has: reviewerPage.locator('.panel-header', { hasText: 'Other cats in the home' }) })
@@ -124,9 +130,12 @@ test.describe.serial('Reviewer screen panels follow the program\'s reviewSection
     const panels = reviewerPage.locator('.panel')
     await expect(panels.first()).toBeVisible()
     const titles = (await panels.locator('.panel-title').allInnerTexts()).map(t => t.trim())
-    expect(titles).toEqual(['General Questions', 'Adopt a Dog'])
+    expect(titles).toEqual(['General Questions', 'Adopt a Dog', 'Complete program review'])
     // a panel with nothing to display is not rendered at all, not shown as an empty header
-    await expect(panels.filter({ hasNot: reviewerPage.locator('dt') })).toHaveCount(0)
+    // (the completion panel is not a requirement section and never has questions)
+    await expect(panels.filter({ hasNot: reviewerPage.locator('dt') }).filter({ hasNot: reviewerPage.locator('.completion-status') })).toHaveCount(0)
+    // the system already finished this program, so the completion panel reads complete
+    await expect(panels.locator('.completion-status.complete')).toContainText('Adopt a Dog is complete')
     // the dog program has no reviewer, workflow or acceptance requirements: the system decided it at submission
     const notice = reviewerPage.locator('.system-determination-notice')
     await expect(notice).toBeVisible()
